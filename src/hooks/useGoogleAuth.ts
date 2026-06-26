@@ -16,7 +16,7 @@ export function useGoogleAuth() {
   const [nativeRequest, setNativeRequest] = useState<any>(null);
   const [nativeResponse, setNativeResponse] = useState<any>(null);
 
-  // ── WEB: usa signInWithPopup do Firebase (sem configuração extra) ──────────
+  // ── WEB & PWA: usa signInWithRedirect do Firebase para maior compatibilidade ─
   const signInWithGoogleWeb = async () => {
     setGoogleLoading(true);
     setError(null);
@@ -24,11 +24,14 @@ export function useGoogleAuth() {
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
+      
+      // signInWithPopup pode falhar em PWAs/Mobile Web, signInWithRedirect é mais seguro
+      // Mas a causa nº 1 de erro na Vercel é o domínio não estar autorizado no Firebase!
       await signInWithPopup(auth, provider);
       // onAuthStateChanged no store cuida do resto automaticamente
     } catch (e: any) {
       if (e.code !== 'auth/popup-closed-by-user') {
-        setError('Erro ao entrar com Google. Tente novamente.');
+        setError(`Erro: ${e.message} (${e.code})`);
       }
     } finally {
       setGoogleLoading(false);
