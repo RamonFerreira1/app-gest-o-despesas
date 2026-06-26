@@ -8,6 +8,8 @@ import {
   Alert,
   TextInput,
   Platform,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,62 +48,23 @@ export default function HistoryScreen() {
 
   const total = filtered.reduce((sum, e) => sum + e.valor, 0);
 
-  const handleDelete = (expense: Expense) => {
-    if (Platform.OS === 'web') {
-      const confirmMsg = expense.tipo === 'recorrente' 
-        ? `Excluir "${expense.nome}"?\n\n(No navegador, todas as parcelas futuras também serão apagadas. Use o celular para excluir apenas uma parcela).` 
-        : `Tem certeza que deseja excluir "${expense.nome}"?`;
-      
-      if (window.confirm(confirmMsg)) {
-        if (expense.tipo === 'recorrente' && expense.grupoRecorrenciaId) {
-          deleteRecurringGroup(user!.uid, expense.grupoRecorrenciaId, expense.data).then(() => {
-            if (user) loadData(user.uid, selectedMonth);
-          });
-        } else {
-          deleteExpense(user!.uid, expense.id).then(() => {
-            removeExpenseLocally(expense.id);
-          });
-        }
-      }
-      return;
-    }
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
 
-    if (expense.tipo === 'recorrente' && expense.grupoRecorrenciaId) {
-      Alert.alert(
-        'Excluir Despesa Recorrente',
-        'Deseja excluir apenas esta parcela ou todas as parcelas futuras?',
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Só esta',
-            onPress: async () => {
-              await deleteExpense(user!.uid, expense.id);
-              removeExpenseLocally(expense.id);
-            },
-          },
-          {
-            text: 'Futuras',
-            style: 'destructive',
-            onPress: async () => {
-              await deleteRecurringGroup(user!.uid, expense.grupoRecorrenciaId!, expense.data);
-              if (user) loadData(user.uid, selectedMonth);
-            },
-          },
-        ]
-      );
+  const handleDelete = (expense: Expense) => {
+    setExpenseToDelete(expense);
+  };
+
+  const confirmDelete = async (scope: 'single' | 'all') => {
+    if (!expenseToDelete) return;
+    
+    if (scope === 'all' && expenseToDelete.grupoRecorrenciaId) {
+      await deleteRecurringGroup(user!.uid, expenseToDelete.grupoRecorrenciaId, expenseToDelete.data);
+      if (user) loadData(user.uid, selectedMonth);
     } else {
-      Alert.alert('Excluir', `Excluir "${expense.nome}"?`, [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteExpense(user!.uid, expense.id);
-            removeExpenseLocally(expense.id);
-          },
-        },
-      ]);
+      await deleteExpense(user!.uid, expenseToDelete.id);
+      removeExpenseLocally(expenseToDelete.id);
     }
+    setExpenseToDelete(null);
   };
 
   const navigateMonth = (dir: -1 | 1) => {
@@ -186,6 +149,47 @@ export default function HistoryScreen() {
           ) : null
         }
       />
+
+      {/* Delete Modal */}
+      <Modal visible={!!expenseToDelete} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconWrap}>
+                <Ionicons name="trash" size={24} color={colors.danger} />
+              </View>
+              <Text style={styles.modalTitle}>Excluir Despesa</Text>
+            </View>
+            
+            <Text style={styles.modalText}>
+              Tem certeza que deseja excluir a despesa <Text style={{fontWeight: 'bold', color: colors.textPrimary}}>{expenseToDelete?.nome}</Text>?
+            </Text>
+
+            {expenseToDelete?.tipo === 'recorrente' && expenseToDelete?.grupoRecorrenciaId ? (
+              <View style={styles.modalButtonsColumn}>
+                <TouchableOpacity style={[styles.modalBtn, styles.modalBtnDanger]} onPress={() => confirmDelete('single')}>
+                  <Text style={styles.modalBtnTextDanger}>Excluir Apenas Esta Parcela</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalBtn, styles.modalBtnDangerOutline]} onPress={() => confirmDelete('all')}>
+                  <Text style={styles.modalBtnTextDangerOutline}>Excluir Todas as Futuras</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalBtn, styles.modalBtnCancel]} onPress={() => setExpenseToDelete(null)}>
+                  <Text style={styles.modalBtnTextCancel}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.modalButtonsRow}>
+                <TouchableOpacity style={[styles.modalBtnRow, styles.modalBtnCancelRow]} onPress={() => setExpenseToDelete(null)}>
+                  <Text style={styles.modalBtnTextCancel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.modalBtnRow, styles.modalBtnDangerRow]} onPress={() => confirmDelete('single')}>
+                  <Text style={styles.modalBtnTextDanger}>Excluir</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -236,4 +240,22 @@ const styles = StyleSheet.create({
   },
   footerLabel: { fontSize: fontSize.sm, color: colors.textSecondary },
   footerTotal: { fontSize: fontSize.md, fontWeight: '700', color: colors.textPrimary },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: spacing.lg },
+  modalContent: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  modalIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.danger + '20', alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { fontSize: fontSize.lg, fontWeight: '700', color: colors.textPrimary },
+  modalText: { fontSize: fontSize.md, color: colors.textSecondary, marginBottom: spacing.xl, lineHeight: 22 },
+  modalButtonsColumn: { gap: spacing.sm },
+  modalBtn: { padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  modalBtnDanger: { backgroundColor: colors.danger },
+  modalBtnTextDanger: { color: colors.background, fontWeight: '700', fontSize: fontSize.md },
+  modalBtnDangerOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.danger },
+  modalBtnTextDangerOutline: { color: colors.danger, fontWeight: '600', fontSize: fontSize.md },
+  modalBtnCancel: { backgroundColor: colors.background },
+  modalBtnTextCancel: { color: colors.textSecondary, fontWeight: '600', fontSize: fontSize.md },
+  modalButtonsRow: { flexDirection: 'row', gap: spacing.sm },
+  modalBtnRow: { flex: 1, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  modalBtnCancelRow: { backgroundColor: colors.background },
+  modalBtnDangerRow: { backgroundColor: colors.danger },
 });
