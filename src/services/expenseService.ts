@@ -140,18 +140,24 @@ export async function deleteRecurringGroup(
 }
 
 // ─── BUSCAR DESPESAS RECORRENTES DO PRÓXIMO MÊS ───────────────────────────────
+// Filtra apenas por data (sem índice composto) e filtra tipo no cliente
 export async function getNextMonthRecurring(userId: string): Promise<Expense[]> {
   const nextMonth = addMonths(new Date(), 1);
   const start = Timestamp.fromDate(startOfMonth(nextMonth));
   const end = Timestamp.fromDate(endOfMonth(nextMonth));
 
   const ref = collection(db, `users/${userId}/expenses`);
+  // Busca todas as despesas do próximo mês (só precisa do índice simples de data)
   const q = query(
     ref,
-    where('tipo', '==', 'recorrente'),
     where('data', '>=', start),
-    where('data', '<=', end)
+    where('data', '<=', end),
+    orderBy('data', 'asc')
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => firestoreToExpense(d.id, d.data()));
+  // Filtra recorrentes no cliente — sem necessidade de índice composto
+  return snapshot.docs
+    .map((d) => firestoreToExpense(d.id, d.data()))
+    .filter((e) => e.tipo === 'recorrente');
 }
+

@@ -3,13 +3,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBOQaMdRRI8UFOoXPspLwve5ezwGfnGXAQ',
-  authDomain: 'app-gestao-de-despesa.firebaseapp.com',
-  projectId: 'app-gestao-de-despesa',
-  storageBucket: 'app-gestao-de-despesa.firebasestorage.app',
-  messagingSenderId: '809012952625',
-  appId: '1:809012952625:web:08451f236790ccbaab1f10',
-  measurementId: 'G-SG6ETYVFGC',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 // Evita reinicializar em hot-reload
