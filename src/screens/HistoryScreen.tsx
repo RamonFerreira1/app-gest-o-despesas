@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +47,25 @@ export default function HistoryScreen() {
   const total = filtered.reduce((sum, e) => sum + e.valor, 0);
 
   const handleDelete = (expense: Expense) => {
+    if (Platform.OS === 'web') {
+      const confirmMsg = expense.tipo === 'recorrente' 
+        ? `Excluir "${expense.nome}"?\n\n(No navegador, todas as parcelas futuras também serão apagadas. Use o celular para excluir apenas uma parcela).` 
+        : `Tem certeza que deseja excluir "${expense.nome}"?`;
+      
+      if (window.confirm(confirmMsg)) {
+        if (expense.tipo === 'recorrente' && expense.grupoRecorrenciaId) {
+          deleteRecurringGroup(user!.uid, expense.grupoRecorrenciaId, expense.data).then(() => {
+            if (user) loadData(user.uid, selectedMonth);
+          });
+        } else {
+          deleteExpense(user!.uid, expense.id).then(() => {
+            removeExpenseLocally(expense.id);
+          });
+        }
+      }
+      return;
+    }
+
     if (expense.tipo === 'recorrente' && expense.grupoRecorrenciaId) {
       Alert.alert(
         'Excluir Despesa Recorrente',
