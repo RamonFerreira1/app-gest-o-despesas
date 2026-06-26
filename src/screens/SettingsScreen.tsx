@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
   const [limite, setLimite] = useState('');
   const [renda, setRenda] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     if (budget) {
@@ -50,11 +52,9 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert('Sair', 'Tem certeza que deseja sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', style: 'destructive', onPress: logout },
-    ]);
+  const confirmLogout = () => {
+    setShowLogoutModal(false);
+    logout();
   };
 
   return (
@@ -138,7 +138,7 @@ export default function SettingsScreen() {
             <Ionicons name="mail-outline" size={16} color={colors.textMuted} />
             <Text style={styles.accountEmail}>{user?.email}</Text>
           </View>
-          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.logoutBtn} onPress={() => setShowLogoutModal(true)} activeOpacity={0.8}>
             <Ionicons name="log-out-outline" size={18} color={colors.danger} />
             <Text style={styles.logoutText}>Sair da Conta</Text>
           </TouchableOpacity>
@@ -153,6 +153,33 @@ export default function SettingsScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Logout Modal */}
+      <Modal visible={showLogoutModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconWrap}>
+                <Ionicons name="log-out" size={24} color={colors.danger} />
+              </View>
+              <Text style={styles.modalTitle}>Sair da Conta</Text>
+            </View>
+            
+            <Text style={styles.modalText}>
+              Tem certeza que deseja sair do seu perfil? Você precisará fazer login novamente para acessar suas despesas.
+            </Text>
+
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity style={[styles.modalBtnRow, styles.modalBtnCancelRow]} onPress={() => setShowLogoutModal(false)}>
+                <Text style={styles.modalBtnTextCancel}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtnRow, styles.modalBtnDangerRow]} onPress={confirmLogout}>
+                <Text style={styles.modalBtnTextDanger}>Sair</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -219,4 +246,16 @@ const styles = StyleSheet.create({
   infoBox: { alignItems: 'center', gap: 4, paddingVertical: spacing.lg },
   infoText: { fontSize: fontSize.sm, color: colors.textMuted, fontWeight: '500' },
   infoSub: { fontSize: fontSize.xs, color: colors.textMuted },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: spacing.lg },
+  modalContent: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
+  modalIconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.danger + '20', alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { fontSize: fontSize.lg, fontWeight: '700', color: colors.textPrimary },
+  modalText: { fontSize: fontSize.md, color: colors.textSecondary, marginBottom: spacing.xl, lineHeight: 22 },
+  modalButtonsRow: { flexDirection: 'row', gap: spacing.sm },
+  modalBtnRow: { flex: 1, padding: spacing.md, borderRadius: borderRadius.md, alignItems: 'center' },
+  modalBtnCancelRow: { backgroundColor: colors.background },
+  modalBtnTextCancel: { color: colors.textSecondary, fontWeight: '600', fontSize: fontSize.md },
+  modalBtnDangerRow: { backgroundColor: colors.danger },
+  modalBtnTextDanger: { color: colors.background, fontWeight: '700', fontSize: fontSize.md },
 });
