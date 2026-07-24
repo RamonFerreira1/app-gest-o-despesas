@@ -20,7 +20,7 @@ import { useExpenseStore } from '../store/useExpenseStore';
 import { createExpense, createRecurringExpense } from '../services/expenseService';
 import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 import { CATEGORIES, categoryColors, categoryIcons } from '../theme';
-import { Expense, ExpenseCategory, ExpenseOrigin } from '../types';
+import { Expense, ExpenseCategory, ExpenseOrigin, ExpensePaymentSource } from '../types';
 
 export default function NewExpenseScreen({ navigation }: any) {
   const { user } = useAuthStore();
@@ -31,6 +31,7 @@ export default function NewExpenseScreen({ navigation }: any) {
   const [categoria, setCategoria] = useState<ExpenseCategory>('Outros');
   const [data, setData] = useState(new Date());
   const [origem, setOrigem] = useState<ExpenseOrigin>('pessoal');
+  const [fontePagamento, setFontePagamento] = useState<ExpensePaymentSource>('corrente');
   const [isRecorrente, setIsRecorrente] = useState(false);
   const [parcelas, setParcelas] = useState('1');
   const [saving, setSaving] = useState(false);
@@ -51,6 +52,7 @@ export default function NewExpenseScreen({ navigation }: any) {
         categoria,
         data,
         origem,
+        fontePagamento,
         tipo: isRecorrente ? 'recorrente' : 'unica',
       } as const;
 
@@ -78,6 +80,7 @@ export default function NewExpenseScreen({ navigation }: any) {
       setValor('');
       setCategoria('Outros');
       setOrigem('pessoal');
+      setFontePagamento('corrente');
       setIsRecorrente(false);
       setParcelas('1');
 
@@ -107,7 +110,7 @@ export default function NewExpenseScreen({ navigation }: any) {
             <Ionicons name="pencil-outline" size={18} color={colors.textMuted} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="Ex: Almoço, Uber, Material..."
+              placeholder="Ex: Amortização Carro, Almoço, Uber..."
               placeholderTextColor={colors.textMuted}
               value={nome}
               onChangeText={setNome}
@@ -116,13 +119,40 @@ export default function NewExpenseScreen({ navigation }: any) {
           </View>
         </View>
 
+        {/* Fonte do Pagamento */}
+        <View style={styles.field}>
+          <Text style={styles.label}>Fonte do Pagamento</Text>
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              style={[styles.toggleBtn, fontePagamento === 'corrente' && styles.toggleBtnActiveCorrente]}
+              onPress={() => setFontePagamento('corrente')}
+            >
+              <Ionicons name="wallet-outline" size={16} color={fontePagamento === 'corrente' ? colors.background : colors.textSecondary} />
+              <View style={{ alignItems: 'flex-start' }}>
+                <Text style={[styles.toggleLabel, fontePagamento === 'corrente' && styles.toggleLabelActive]}>Orçamento Mensal</Text>
+                <Text style={[styles.toggleSubLabel, fontePagamento === 'corrente' && styles.toggleSubLabelActive]}>Teto de gastos do mês</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleBtn, fontePagamento === 'reservado' && styles.toggleBtnActiveReservado]}
+              onPress={() => setFontePagamento('reservado')}
+            >
+              <Ionicons name="shield-checkmark" size={16} color={fontePagamento === 'reservado' ? colors.textPrimary : colors.textSecondary} />
+              <View style={{ alignItems: 'flex-start' }}>
+                <Text style={[styles.toggleLabel, fontePagamento === 'reservado' && styles.toggleLabelActiveReservado]}>Valor Reservado</Text>
+                <Text style={[styles.toggleSubLabel, fontePagamento === 'reservado' && styles.toggleSubLabelActiveReservado]}>Amortização / Reserva</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Valor */}
         <View style={styles.field}>
           <Text style={styles.label}>Valor (R$)</Text>
           <View style={styles.inputRow}>
-            <Text style={[styles.inputIcon, { color: colors.primary, fontSize: 16, fontWeight: '700' }]}>R$</Text>
+            <Text style={[styles.inputIcon, { color: fontePagamento === 'reservado' ? '#C77DFF' : colors.primary, fontSize: 16, fontWeight: '700' }]}>R$</Text>
             <TextInput
-              style={[styles.input, styles.valorInput]}
+              style={[styles.input, styles.valorInput, fontePagamento === 'reservado' && { color: '#C77DFF' }]}
               placeholder="0,00"
               placeholderTextColor={colors.textMuted}
               value={valor}
@@ -294,8 +324,14 @@ const styles = StyleSheet.create({
   },
   toggleBtnActivePessoal: { backgroundColor: colors.pessoal, borderColor: colors.pessoal },
   toggleBtnActiveNegocio: { backgroundColor: colors.negocio, borderColor: colors.negocio },
-  toggleLabel: { fontSize: fontSize.sm, fontWeight: '600', color: colors.textSecondary },
-  toggleLabelActive: { color: colors.background },
+  toggleBtnActiveCorrente: { backgroundColor: colors.primary, borderColor: colors.primary },
+  toggleBtnActiveReservado: { backgroundColor: '#7C4DFF', borderColor: '#9D4EDD' },
+  toggleLabel: { fontSize: fontSize.xs, fontWeight: '600', color: colors.textSecondary },
+  toggleLabelActive: { color: colors.background, fontWeight: '700' },
+  toggleLabelActiveReservado: { color: colors.textPrimary, fontWeight: '700' },
+  toggleSubLabel: { fontSize: 9, color: colors.textMuted },
+  toggleSubLabelActive: { color: colors.background + 'CC' },
+  toggleSubLabelActiveReservado: { color: '#E0AAFF' },
   categoriaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   categoriaBtn: {
     flexDirection: 'row',

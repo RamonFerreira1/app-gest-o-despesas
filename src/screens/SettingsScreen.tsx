@@ -24,6 +24,7 @@ export default function SettingsScreen() {
 
   const [limite, setLimite] = useState('');
   const [renda, setRenda] = useState('');
+  const [valorReservadoInput, setValorReservadoInput] = useState('');
   const [saving, setSaving] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -31,18 +32,20 @@ export default function SettingsScreen() {
     if (budget) {
       setLimite(budget.limite.toString());
       setRenda(budget.rendaMensal.toString());
+      setValorReservadoInput((budget.valorReservado ?? 0).toString());
     }
   }, [budget]);
 
   const handleSave = async () => {
     const limiteNum = parseFloat(limite.replace(',', '.'));
     const rendaNum = parseFloat(renda.replace(',', '.')) || 0;
+    const valorReservadoNum = parseFloat(valorReservadoInput.replace(',', '.')) || 0;
     if (!limiteNum || limiteNum <= 0) return Alert.alert('Atenção', 'Informe um teto de gastos válido.');
     if (!user) return;
 
     setSaving(true);
     try {
-      await setBudget(user.uid, new Date(), limiteNum, rendaNum);
+      await setBudget(user.uid, new Date(), limiteNum, rendaNum, valorReservadoNum);
       await loadData(user.uid);
       Alert.alert('✅ Salvo', 'Configurações atualizadas!');
     } catch (e) {
@@ -65,16 +68,16 @@ export default function SettingsScreen() {
           <Text style={styles.subtitle}>Personalize seu app financeiro</Text>
         </View>
 
-        {/* Card Orçamento */}
+        {/* Card Orçamento & Reserva */}
         <View style={[styles.card, shadows.sm]}>
           <View style={styles.cardHeader}>
             <View style={[styles.cardIcon, { backgroundColor: colors.primaryDim }]}>
               <Ionicons name="wallet" size={20} color={colors.primary} />
             </View>
-            <Text style={styles.cardTitle}>Orçamento Mensal</Text>
+            <Text style={styles.cardTitle}>Orçamento & Reserva</Text>
           </View>
 
-          <Text style={styles.label}>Teto de Gastos (R$)</Text>
+          <Text style={styles.label}>Teto de Gastos Mensais (R$)</Text>
           <View style={styles.inputRow}>
             <Text style={styles.currencyPrefix}>R$</Text>
             <TextInput
@@ -83,6 +86,20 @@ export default function SettingsScreen() {
               placeholderTextColor={colors.textMuted}
               value={limite}
               onChangeText={setLimite}
+              keyboardType="numeric"
+            />
+          </View>
+
+          <Text style={[styles.label, { marginTop: spacing.md }]}>Valor Reservado Total (R$)</Text>
+          <Text style={styles.hint}>Dinheiro guardado para amortizações ou emergências</Text>
+          <View style={styles.inputRow}>
+            <Text style={[styles.currencyPrefix, { color: '#C77DFF' }]}>R$</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="0,00"
+              placeholderTextColor={colors.textMuted}
+              value={valorReservadoInput}
+              onChangeText={setValorReservadoInput}
               keyboardType="numeric"
             />
           </View>
@@ -104,7 +121,10 @@ export default function SettingsScreen() {
           {budget && (
             <View style={styles.currentValues}>
               <Text style={styles.currentLabel}>
-                Atual: <Text style={styles.currentValue}>{formatCurrency(budget.limite)}</Text>
+                Teto Atual: <Text style={styles.currentValue}>{formatCurrency(budget.limite)}</Text>
+              </Text>
+              <Text style={styles.currentLabel}>
+                Valor Reservado: <Text style={[styles.currentValue, { color: '#C77DFF' }]}>{formatCurrency(budget.valorReservado ?? 0)}</Text>
               </Text>
               {budget.rendaMensal > 0 && (
                 <Text style={styles.currentLabel}>

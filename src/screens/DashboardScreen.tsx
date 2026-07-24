@@ -17,6 +17,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 import { formatCurrency } from '../services/insightService';
 import BudgetProgress from '../components/dashboard/BudgetProgress';
+import ReservedFundCard from '../components/dashboard/ReservedFundCard';
 import CategoryPieChart from '../components/dashboard/CategoryPieChart';
 import PersonalVsBusinessBar from '../components/dashboard/PersonalVsBusinessBar';
 import InsightCard from '../components/dashboard/InsightCard';
@@ -75,7 +76,7 @@ export default function DashboardScreen() {
 
           {/* ── Saldo Hero Card ── */}
           <View style={[styles.heroCard, shadows.md]}>
-            <Text style={styles.heroLabel}>Total Gasto no Mês</Text>
+            <Text style={styles.heroLabel}>Total Gasto no Orçamento Mensal</Text>
             <Text style={styles.heroValue}>
               {formatCurrency(summary?.totalGasto ?? 0)}
             </Text>
@@ -100,6 +101,9 @@ export default function DashboardScreen() {
 
           {/* ── Budget Progress ── */}
           {summary && <BudgetProgress summary={summary} />}
+
+          {/* ── Valor Reservado Card ── */}
+          {summary && <ReservedFundCard summary={summary} />}
 
           {/* ── Insights ── */}
           {insights.length > 0 && (

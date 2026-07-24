@@ -26,6 +26,7 @@ import { CATEGORIES } from '../theme';
 
 type FilterOrigin = 'all' | ExpenseOrigin;
 type FilterCategory = 'all' | ExpenseCategory;
+type FilterFonte = 'all' | 'corrente' | 'reservado';
 
 export default function HistoryScreen() {
   const { user } = useAuthStore();
@@ -33,6 +34,7 @@ export default function HistoryScreen() {
 
   const [filterOrigin, setFilterOrigin] = useState<FilterOrigin>('all');
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
+  const [filterFonte, setFilterFonte] = useState<FilterFonte>('all');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -42,11 +44,20 @@ export default function HistoryScreen() {
   const filtered = expenses.filter((e) => {
     if (filterOrigin !== 'all' && e.origem !== filterOrigin) return false;
     if (filterCategory !== 'all' && e.categoria !== filterCategory) return false;
+    if (filterFonte !== 'all' && (e.fontePagamento ?? 'corrente') !== filterFonte) return false;
     if (search && !e.nome.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const total = filtered.reduce((sum, e) => sum + e.valor, 0);
+  const totalCorrente = filtered
+    .filter((e) => (e.fontePagamento ?? 'corrente') === 'corrente')
+    .reduce((sum, e) => sum + e.valor, 0);
+
+  const totalReservado = filtered
+    .filter((e) => e.fontePagamento === 'reservado')
+    .reduce((sum, e) => sum + e.valor, 0);
+
+  const totalGeral = filtered.reduce((sum, e) => sum + e.valor, 0);
 
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
 
@@ -122,6 +133,34 @@ export default function HistoryScreen() {
         ))}
       </View>
 
+      {/* Filters Fonte */}
+      <View style={styles.filtersRow}>
+        <TouchableOpacity
+          style={[styles.filterChip, filterFonte === 'all' && styles.filterChipActive]}
+          onPress={() => setFilterFonte('all')}
+        >
+          <Text style={[styles.filterChipText, filterFonte === 'all' && styles.filterChipTextActive]}>
+            Todas as Fontes
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterChip, filterFonte === 'corrente' && styles.filterChipActive]}
+          onPress={() => setFilterFonte('corrente')}
+        >
+          <Text style={[styles.filterChipText, filterFonte === 'corrente' && styles.filterChipTextActive]}>
+            🟢 Orçamento
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.filterChip, filterFonte === 'reservado' && { borderColor: '#9D4EDD', backgroundColor: filterFonte === 'reservado' ? 'rgba(157, 78, 221, 0.25)' : colors.surface }]}
+          onPress={() => setFilterFonte('reservado')}
+        >
+          <Text style={[styles.filterChipText, filterFonte === 'reservado' && { color: '#C77DFF', fontWeight: '700' }]}>
+            🏛️ Valor Reservado
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* List */}
       <FlatList
         data={filtered}
@@ -142,9 +181,21 @@ export default function HistoryScreen() {
         }
         ListFooterComponent={
           filtered.length > 0 ? (
-            <View style={styles.footer}>
-              <Text style={styles.footerLabel}>{filtered.length} despesa(s)</Text>
-              <Text style={styles.footerTotal}>{formatCurrency(total)}</Text>
+            <View style={styles.footerContainer}>
+              <View style={styles.footerRow}>
+                <Text style={styles.footerLabel}>{filtered.length} despesa(s)</Text>
+                <Text style={styles.footerTotal}>{formatCurrency(totalGeral)}</Text>
+              </View>
+              {(totalCorrente > 0 || totalReservado > 0) && (
+                <View style={styles.footerBreakdown}>
+                  <Text style={styles.footerSubText}>🟢 Orçamento: {formatCurrency(totalCorrente)}</Text>
+                  {totalReservado > 0 && (
+                    <Text style={[styles.footerSubText, { color: '#C77DFF' }]}>
+                      🏛️ Reserva: {formatCurrency(totalReservado)}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
           ) : null
         }
@@ -230,16 +281,31 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl },
   empty: { alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.sm },
   emptyText: { fontSize: fontSize.md, color: colors.textMuted },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  footerContainer: {
     paddingVertical: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     marginTop: spacing.md,
+    gap: spacing.xs,
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   footerLabel: { fontSize: fontSize.sm, color: colors.textSecondary },
   footerTotal: { fontSize: fontSize.md, fontWeight: '700', color: colors.textPrimary },
+  footerBreakdown: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing.md,
+    marginTop: 2,
+  },
+  footerSubText: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: spacing.lg },
   modalContent: { backgroundColor: colors.surface, borderRadius: borderRadius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border },
   modalHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },

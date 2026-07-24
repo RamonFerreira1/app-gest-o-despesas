@@ -22,6 +22,7 @@ export async function getBudget(userId: string, date: Date): Promise<Budget | nu
     mes: data.mes,
     limite: data.limite,
     rendaMensal: data.rendaMensal ?? 0,
+    valorReservado: data.valorReservado ?? 0,
     updatedAt: data.updatedAt.toDate(),
   };
 }
@@ -30,7 +31,8 @@ export async function setBudget(
   userId: string,
   date: Date,
   limite: number,
-  rendaMensal: number
+  rendaMensal: number,
+  valorReservado: number = 0
 ): Promise<void> {
   const key = monthKey(date);
   const ref = doc(db, `users/${userId}/budgets`, key);
@@ -38,6 +40,7 @@ export async function setBudget(
     mes: key,
     limite,
     rendaMensal,
+    valorReservado,
     updatedAt: Timestamp.now(),
   };
   await setDoc(ref, data, { merge: true });
@@ -52,6 +55,7 @@ export async function getOrCreateBudget(userId: string): Promise<Budget> {
     mes: monthKey(now),
     limite: 3000,
     rendaMensal: 0,
+    valorReservado: 0,
     updatedAt: now,
   };
 }

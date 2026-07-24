@@ -1,30 +1,48 @@
 import { Expense, Budget, InsightData, MonthSummary } from '../types';
 
-export function calcMonthSummary(expenses: Expense[], budget: Budget): MonthSummary {
-  const totalGasto = expenses.reduce((sum, e) => sum + e.valor, 0);
-  const totalPessoal = expenses
+export function calcMonthSummary(
+  expenses: Expense[],
+  budget: Budget,
+  reservedExpensesTotalAcumulado: number = 0
+): MonthSummary {
+  // Despesas correntes (afetam o teto do orçamento)
+  const correnteExpenses = expenses.filter((e) => e.fontePagamento !== 'reservado');
+  // Despesas com valor reservado no mês
+  const reservedExpensesMonth = expenses.filter((e) => e.fontePagamento === 'reservado');
+
+  const totalGasto = correnteExpenses.reduce((sum, e) => sum + e.valor, 0);
+  const totalGastoReservado = reservedExpensesMonth.reduce((sum, e) => sum + e.valor, 0);
+
+  const totalPessoal = correnteExpenses
     .filter((e) => e.origem === 'pessoal')
     .reduce((sum, e) => sum + e.valor, 0);
-  const totalNegocio = expenses
+  const totalNegocio = correnteExpenses
     .filter((e) => e.origem === 'negocio')
     .reduce((sum, e) => sum + e.valor, 0);
 
   const byCategory: Record<string, number> = {};
-  expenses.forEach((e) => {
+  correnteExpenses.forEach((e) => {
     byCategory[e.categoria] = (byCategory[e.categoria] ?? 0) + e.valor;
   });
 
   const percentualUsado = budget.limite > 0 ? (totalGasto / budget.limite) * 100 : 0;
   const saldoRestante = budget.limite - totalGasto;
 
+  const valorReservado = budget.valorReservado ?? 0;
+  const saldoReservaRestante = valorReservado - reservedExpensesTotalAcumulado;
+
   return {
     totalGasto,
+    totalGastoReservado,
+    totalGastoReservadoAcumulado: reservedExpensesTotalAcumulado,
     totalPessoal,
     totalNegocio,
     byCategory,
     limite: budget.limite,
     percentualUsado,
     saldoRestante,
+    valorReservado,
+    saldoReservaRestante,
   };
 }
 
@@ -35,7 +53,17 @@ export function generateInsights(
 ): InsightData[] {
   const insights: InsightData[] = [];
 
-  // ── Alerta 80% ───────────────────────────────────────────────────
+  // ── Alerta Amortização / Uso da Reserva no Mês ──────────────────
+  if (summary.totalGastoReservado > 0) {
+    insights.push({
+      type: 'info',
+      icon: 'shield-checkmark',
+      title: '🏛️ Uso do Valor Reservado',
+      message: `Você utilizou ${formatCurrency(summary.totalGastoReservado)} do seu Valor Reservado este mês para amortizações/despesas específicas sem afetar seu teto mensal.`,
+    });
+  }
+
+  // ── Alerta 80% Teto Mensal ──────────────────────────────────────────
   if (summary.percentualUsado >= 100) {
     insights.push({
       type: 'danger',

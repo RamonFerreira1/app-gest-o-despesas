@@ -29,6 +29,7 @@ function firestoreToExpense(id: string, data: any): Expense {
     data: data.data.toDate(),
     origem: data.origem,
     tipo: data.tipo,
+    fontePagamento: data.fontePagamento ?? 'corrente',
     totalParcelas: data.totalParcelas ?? null,
     parcelasRestantes: data.parcelasRestantes ?? null,
     grupoRecorrenciaId: data.grupoRecorrenciaId ?? null,
@@ -50,6 +51,7 @@ export async function createExpense(
     data: Timestamp.fromDate(expense.data),
     origem: expense.origem,
     tipo: 'unica',
+    fontePagamento: expense.fontePagamento ?? 'corrente',
     totalParcelas: null,
     parcelasRestantes: null,
     grupoRecorrenciaId: null,
@@ -80,6 +82,7 @@ export async function createRecurringExpense(
       data: Timestamp.fromDate(dataProjetada),
       origem: expense.origem,
       tipo: 'recorrente',
+      fontePagamento: expense.fontePagamento ?? 'corrente',
       totalParcelas: totalMeses,
       parcelasRestantes: totalMeses - i,
       grupoRecorrenciaId: groupId,
@@ -159,5 +162,15 @@ export async function getNextMonthRecurring(userId: string): Promise<Expense[]> 
   return snapshot.docs
     .map((d) => firestoreToExpense(d.id, d.data()))
     .filter((e) => e.tipo === 'recorrente');
+}
+
+// ─── BUSCAR TOTAL ACUMULADO DE GASTOS DA RESERVA ─────────────────────────────
+export async function getReservedExpensesTotal(userId: string): Promise<number> {
+  const ref = collection(db, `users/${userId}/expenses`);
+  const snapshot = await getDocs(ref);
+  return snapshot.docs
+    .map((d) => firestoreToExpense(d.id, d.data()))
+    .filter((e) => e.fontePagamento === 'reservado')
+    .reduce((sum, e) => sum + e.valor, 0);
 }
 

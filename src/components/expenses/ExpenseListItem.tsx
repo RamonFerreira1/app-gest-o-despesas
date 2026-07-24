@@ -37,6 +37,11 @@ export default function ExpenseListItem({ expense, compact, onDelete }: Props) {
               {expense.origem === 'pessoal' ? 'Pessoal' : 'NR Brownies'}
             </Text>
           </View>
+          {expense.fontePagamento === 'reservado' && (
+            <View style={[styles.badge, { backgroundColor: 'rgba(157, 78, 221, 0.25)' }]}>
+              <Text style={[styles.badgeText, { color: '#C77DFF' }]}>🏛️ Reserva</Text>
+            </View>
+          )}
           <Text style={styles.categoria}>{expense.categoria}</Text>
           <Text style={styles.data}>{format(expense.data, 'dd/MM', { locale: ptBR })}</Text>
           {expense.tipo === 'recorrente' && expense.totalParcelas && (
