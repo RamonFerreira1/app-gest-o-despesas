@@ -52,7 +52,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
 
       if (Platform.OS !== 'web') {
         // No mobile, abre usando WebBrowser
-        const connectUrl = `https://connect.pluggy.ai?connectToken=${token}`;
+        const connectUrl = `https://connect.pluggy.ai?connect_token=${encodeURIComponent(token)}&with_sandbox=true`;
         const result = await WebBrowser.openAuthSessionAsync(connectUrl, 'nrfinance://pluggy-callback');
         if (result.type === 'success' || result.type === 'dismiss') {
           // Após fechar o browser no mobile, tenta finalizar
@@ -66,6 +66,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
       setLoading(false);
     }
   };
+
 
   // Listener para postMessage no Web (quando o iframe do Pluggy envia eventos)
   useEffect(() => {
@@ -177,12 +178,13 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
           ) : Platform.OS === 'web' && connectToken ? (
             <View style={styles.iframeContainer}>
               <iframe
-                src={`https://connect.pluggy.ai?connectToken=${encodeURIComponent(connectToken)}&token=${encodeURIComponent(connectToken)}&includeSandbox=true`}
+                src={`https://connect.pluggy.ai?connect_token=${encodeURIComponent(connectToken)}&with_sandbox=true&includeSandbox=true`}
                 style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }}
                 title="Pluggy Connect"
               />
             </View>
           ) : (
+
 
             <View style={styles.mobileHintContainer}>
               <Ionicons name="open-outline" size={48} color={colors.primary} />
