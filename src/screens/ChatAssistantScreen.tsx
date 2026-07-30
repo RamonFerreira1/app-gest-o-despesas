@@ -23,6 +23,8 @@ import {
   clearChatMessagesFirestore,
 } from '../services/aiChatService';
 import { getPendingTransactions } from '../services/reconciliationService';
+import { getGoals } from '../services/goalsService';
+import { Goal } from '../types';
 import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 
 const QUICK_CHIPS = [
@@ -36,13 +38,14 @@ const QUICK_CHIPS = [
 
 export default function ChatAssistantScreen() {
   const { user } = useAuthStore();
-  const { expenses, summary, budget, loadData } = useExpenseStore();
+  const { expenses, nextMonthRecurring, summary, budget, loadData } = useExpenseStore();
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [pendingTxs, setPendingTxs] = useState<any[]>([]);
+  const [goals, setGoals] = useState<Goal[]>([]);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -50,9 +53,20 @@ export default function ChatAssistantScreen() {
     if (user?.uid) {
       loadData(user.uid);
       loadPending();
+      loadGoalsList();
       loadHistory();
     }
   }, [user?.uid]);
+
+  const loadGoalsList = async () => {
+    if (!user?.uid) return;
+    try {
+      const g = await getGoals(user.uid);
+      setGoals(g);
+    } catch {
+      // Ignora erro
+    }
+  };
 
   const loadPending = async () => {
     if (!user?.uid) return;
@@ -143,6 +157,8 @@ export default function ChatAssistantScreen() {
           summary,
           budget,
           pendingTransactions: pendingTxs,
+          nextMonthRecurring,
+          goals,
         },
         messages
       );
