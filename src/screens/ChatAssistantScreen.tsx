@@ -9,23 +9,29 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useExpenseStore } from '../store/useExpenseStore';
 import { useAuthStore } from '../store/useAuthStore';
 import { ChatMessage } from '../types';
-import { askFinancialAI } from '../services/aiChatService';
+import {
+  askFinancialAI,
+  saveChatMessageFirestore,
+  getChatMessagesFirestore,
+  clearChatMessagesFirestore,
+} from '../services/aiChatService';
 import { getPendingTransactions } from '../services/reconciliationService';
 import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 
 const QUICK_CHIPS = [
+  { label: '💾 Nossa conversa fica salva?', prompt: 'Nossa conversa fica salva?' },
   { label: '📊 Quanto gastei este mês?', prompt: 'Quanto eu gastei este mês?' },
   { label: '🎯 Quanto me resta do limite?', prompt: 'Quanto me resta do orçamento?' },
   { label: '⚖️ Pessoal vs Negócio (PF/PJ)', prompt: 'Resumo Pessoal vs Negócio' },
   { label: '💰 Valor da minha Reserva', prompt: 'Qual o valor da minha reserva?' },
   { label: '💡 Dicas para Economizar', prompt: 'Como posso economizar este mês?' },
-  { label: '🏦 Movimentações do Banco', prompt: 'Existem lançamentos bancários pendentes?' },
 ];
 
 export default function ChatAssistantScreen() {
@@ -35,6 +41,7 @@ export default function ChatAssistantScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isThinking, setIsThinking] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [pendingTxs, setPendingTxs] = useState<any[]>([]);
 
   const scrollViewRef = useRef<ScrollView>(null);
@@ -43,6 +50,7 @@ export default function ChatAssistantScreen() {
     if (user?.uid) {
       loadData(user.uid);
       loadPending();
+      loadHistory();
     }
   }, [user?.uid]);
 
@@ -52,27 +60,65 @@ export default function ChatAssistantScreen() {
       const p = await getPendingTransactions(user.uid);
       setPendingTxs(p);
     } catch {
-      // Ignora erro de pendentes
+      // Ignora erro
     }
   };
 
-  // Mensagem inicial de boas-vindas
-  useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
-        {
+  const loadHistory = async () => {
+    if (!user?.uid) return;
+    try {
+      setLoadingHistory(true);
+      const savedMsgs = await getChatMessagesFirestore(user.uid);
+      if (savedMsgs.length > 0) {
+        setMessages(savedMsgs);
+      } else {
+        // Mensagem padrão inicial
+        const welcomeMsg: ChatMessage = {
           id: 'welcome',
           sender: 'assistant',
-          text: `Olá! Sou o **NR Finance AI**, seu assistente pessoal de inteligência financeira. 🤖\n\nEstou conectado aos seus dados de despesas, teto orçamentário, fundo de reserva e contas do banco Pluggy.\n\nComo posso ajudar você hoje?`,
+          text: `Olá! Sou o **NR Finance AI**, seu assistente pessoal de inteligência financeira. 🤖\n\nEstou conectado aos seus dados de despesas, teto orçamentário, fundo de reserva e contas do banco Pluggy.\n\nNossa conversa fica **100% salva** para você consultar quando quiser. Como posso ajudar você hoje?`,
           timestamp: new Date(),
-        },
-      ]);
+        };
+        setMessages([welcomeMsg]);
+        await saveChatMessageFirestore(user.uid, welcomeMsg);
+      }
+    } catch (err) {
+      console.error('Erro ao carregar histórico de chat:', err);
+    } finally {
+      setLoadingHistory(false);
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 200);
     }
-  }, []);
+  };
+
+  const handleClearHistory = () => {
+    if (!user?.uid) return;
+    Alert.alert(
+      'Limpar Histórico',
+      'Deseja apagar todas as mensagens salvas desta conversa?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Limpar',
+          style: 'destructive',
+          onPress: async () => {
+            await clearChatMessagesFirestore(user.uid);
+            const welcomeMsg: ChatMessage = {
+              id: Math.random().toString(),
+              sender: 'assistant',
+              text: `Histórico limpo! 🧹 Como posso ajudar você agora?`,
+              timestamp: new Date(),
+            };
+            setMessages([welcomeMsg]);
+            await saveChatMessageFirestore(user.uid, welcomeMsg);
+          },
+        },
+      ]
+    );
+  };
 
   const handleSend = async (customPrompt?: string) => {
     const textToSend = customPrompt || inputText;
-    if (!textToSend.trim() || isThinking) return;
+    if (!textToSend.trim() || isThinking || !user?.uid) return;
 
     const userMsg: ChatMessage = {
       id: Math.random().toString(),
@@ -82,10 +128,11 @@ export default function ChatAssistantScreen() {
     };
 
     setMessages((prev) => [...prev, userMsg]);
+    await saveChatMessageFirestore(user.uid, userMsg);
+
     if (!customPrompt) setInputText('');
     setIsThinking(true);
 
-    // Rola para o fim
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
@@ -104,16 +151,16 @@ export default function ChatAssistantScreen() {
       };
 
       setMessages((prev) => [...prev, aiMsg]);
+      await saveChatMessageFirestore(user.uid, aiMsg);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Math.random().toString(),
-          sender: 'assistant',
-          text: 'Desculpe, ocorreu um erro ao consultar os dados. Tente novamente!',
-          timestamp: new Date(),
-        },
-      ]);
+      const errMsg: ChatMessage = {
+        id: Math.random().toString(),
+        sender: 'assistant',
+        text: 'Desculpe, ocorreu um erro ao consultar os dados. Tente novamente!',
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errMsg]);
+      await saveChatMessageFirestore(user.uid, errMsg);
     } finally {
       setIsThinking(false);
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
@@ -121,7 +168,6 @@ export default function ChatAssistantScreen() {
   };
 
   const renderFormattedText = (text: string) => {
-    // Formatação simples de negrito para **texto**
     const parts = text.split(/(\*\*[^*]+\*\*)/g);
     return parts.map((part, index) => {
       if (part.startsWith('**') && part.endsWith('**')) {
@@ -151,66 +197,77 @@ export default function ChatAssistantScreen() {
               <Text style={styles.title}>NR Finance AI</Text>
               <View style={styles.statusRow}>
                 <View style={styles.onlineDot} />
-                <Text style={styles.subtitle}>Assistente de Inteligência Financeira</Text>
+                <Text style={styles.subtitle}>Conversa Salva • Inteligência Financeira</Text>
               </View>
             </View>
           </View>
+
+          <TouchableOpacity style={styles.clearBtn} onPress={handleClearHistory}>
+            <Ionicons name="trash-outline" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
         </View>
 
         {/* Lista de Mensagens */}
-        <ScrollView
-          ref={scrollViewRef}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {messages.map((msg) => {
-            const isUser = msg.sender === 'user';
-            return (
-              <View
-                key={msg.id}
-                style={[
-                  styles.msgRow,
-                  isUser ? styles.msgRowUser : styles.msgRowAssistant,
-                ]}
-              >
-                {!isUser && (
-                  <View style={styles.msgAvatar}>
-                    <Ionicons name="sparkles" size={14} color={colors.primary} />
-                  </View>
-                )}
-
+        {loadingHistory ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={styles.loadingHistoryText}>Carregando conversa salva...</Text>
+          </View>
+        ) : (
+          <ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={styles.messagesContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {messages.map((msg) => {
+              const isUser = msg.sender === 'user';
+              return (
                 <View
+                  key={msg.id}
                   style={[
-                    styles.bubble,
-                    isUser ? styles.bubbleUser : styles.bubbleAssistant,
+                    styles.msgRow,
+                    isUser ? styles.msgRowUser : styles.msgRowAssistant,
                   ]}
                 >
-                  <Text style={isUser ? styles.bubbleTextUser : styles.bubbleTextAssistant}>
-                    {renderFormattedText(msg.text)}
-                  </Text>
-                  <Text style={styles.timeText}>
-                    {new Date(msg.timestamp).toLocaleTimeString('pt-BR', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Text>
+                  {!isUser && (
+                    <View style={styles.msgAvatar}>
+                      <Ionicons name="sparkles" size={14} color={colors.primary} />
+                    </View>
+                  )}
+
+                  <View
+                    style={[
+                      styles.bubble,
+                      isUser ? styles.bubbleUser : styles.bubbleAssistant,
+                    ]}
+                  >
+                    <Text style={isUser ? styles.bubbleTextUser : styles.bubbleTextAssistant}>
+                      {renderFormattedText(msg.text)}
+                    </Text>
+                    <Text style={styles.timeText}>
+                      {new Date(msg.timestamp).toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+
+            {isThinking && (
+              <View style={[styles.msgRow, styles.msgRowAssistant]}>
+                <View style={styles.msgAvatar}>
+                  <Ionicons name="sparkles" size={14} color={colors.primary} />
+                </View>
+                <View style={[styles.bubble, styles.bubbleAssistant, styles.thinkingBubble]}>
+                  <ActivityIndicator size="small" color={colors.primary} />
+                  <Text style={styles.thinkingText}>Analisando suas finanças...</Text>
                 </View>
               </View>
-            );
-          })}
-
-          {isThinking && (
-            <View style={[styles.msgRow, styles.msgRowAssistant]}>
-              <View style={styles.msgAvatar}>
-                <Ionicons name="sparkles" size={14} color={colors.primary} />
-              </View>
-              <View style={[styles.bubble, styles.bubbleAssistant, styles.thinkingBubble]}>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={styles.thinkingText}>Analisando suas finanças...</Text>
-              </View>
-            </View>
-          )}
-        </ScrollView>
+            )}
+          </ScrollView>
+        )}
 
         {/* Chips de Perguntas Rápidas */}
         <View style={styles.chipsSection}>
@@ -232,7 +289,7 @@ export default function ChatAssistantScreen() {
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
-            placeholder="Pergunte sobre seus gastos, limite ou reserva..."
+            placeholder="Digite qualquer pergunta sobre suas finanças..."
             placeholderTextColor={colors.textMuted}
             value={inputText}
             onChangeText={setInputText}
@@ -297,6 +354,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   subtitle: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  clearBtn: {
+    padding: spacing.xs,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  loadingHistoryText: {
     fontSize: fontSize.xs,
     color: colors.textSecondary,
   },

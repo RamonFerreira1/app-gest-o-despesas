@@ -1,3 +1,14 @@
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  Timestamp,
+} from 'firebase/firestore';
+import { db } from '../config/firebase';
 import { Expense, MonthSummary, Budget, PendingTransaction, ChatMessage } from '../types';
 import { formatCurrency } from './insightService';
 
@@ -19,7 +30,6 @@ export async function askFinancialAI(
   prompt: string,
   context: FinancialContext
 ): Promise<string> {
-  // Se houver chave do Gemini configurada no .env, tenta chamada direta à API
   if (GEMINI_API_KEY) {
     try {
       const systemContextPrompt = buildSystemContextPrompt(context);
@@ -32,7 +42,7 @@ export async function askFinancialAI(
               role: 'user',
               parts: [
                 {
-                  text: `${systemContextPrompt}\n\nPergunta do Usuário: "${prompt}"\n\nResponda em português brasileiro com formatação clara (bullet points, destaques em negrito para valores R$).`,
+                  text: `${systemContextPrompt}\n\nPergunta do Usuário: "${prompt}"\n\nResponda em português brasileiro de forma natural, amigável e direta, usando negrito para valores em R$ ou destaques importantes.`,
                 },
               ],
             },
@@ -52,13 +62,9 @@ export async function askFinancialAI(
     }
   }
 
-  // Motor Local de Inteligência Financeira
   return processLocalFinancialQuery(prompt, context);
 }
 
-/**
- * Constrói a mensagem de contexto financeiro completo para alimentarmos a IA.
- */
 function buildSystemContextPrompt(ctx: FinancialContext): string {
   const { summary, budget, expenses, pendingTransactions } = ctx;
   const mes = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -88,7 +94,7 @@ function buildSystemContextPrompt(ctx: FinancialContext): string {
   }
 
   if (expenses.length > 0) {
-    text += `- Últimas 5 Despesas Registradas:\n`;
+    text += `- Últimas Despesas Registradas:\n`;
     expenses.slice(0, 5).forEach((e) => {
       const dataFormatada = new Date(e.data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
       text += `  * ${e.nome} (${e.origem === 'negocio' ? 'PJ' : 'PF'} - ${e.categoria}): ${formatCurrency(e.valor)} em ${dataFormatada}\n`;
@@ -98,12 +104,28 @@ function buildSystemContextPrompt(ctx: FinancialContext): string {
   return text;
 }
 
-/**
- * Motor Inteligente Local que analisa a pergunta e calcula respostas financeiras precisas.
- */
 function processLocalFinancialQuery(prompt: string, ctx: FinancialContext): string {
-  const p = prompt.toLowerCase();
+  const p = prompt.toLowerCase().trim();
   const { summary, budget, expenses, pendingTransactions } = ctx;
+
+  // Perguntas sobre salvamento da conversa
+  if (p.includes('salva') || p.includes('salvo') || p.includes('histórico') || p.includes('historico') || p.includes('grava') || p.includes('guardad')) {
+    return `Sim! 💾 **Nossa conversa fica salva automaticamente** na sua conta com total segurança.\n\nSempre que você abrir o chat do **NR Finance AI**, você poderá ver as mensagens anteriores ou tocar no ícone de lixeira no topo para limpar o histórico!`;
+  }
+
+  // Cumprimentos
+  if (p === 'oi' || p === 'olá' || p === 'ola' || p.startsWith('bom dia') || p.startsWith('boa tarde') || p.startsWith('boa noite')) {
+    let greeting = `Olá! 👋 Como posso ajudar no gerenciamento das suas finanças pessoais ou da **NR Brownies** hoje?\n\n`;
+    if (summary) {
+      greeting += `Você já utilizou **${formatCurrency(summary.totalGasto)}** do seu teto de **${formatCurrency(summary.limite)}**. Restam **${formatCurrency(summary.saldoRestante)}** livres!`;
+    }
+    return greeting;
+  }
+
+  // Quem é você / Como funciona
+  if (p.includes('quem é você') || p.includes('quem e voce') || p.includes('como funciona') || p.includes('o que você faz') || p.includes('o que voce faz')) {
+    return `🤖 Sou o **NR Finance AI**, o seu assistente de inteligência financeira pessoal e empresarial!\n\nPosso calcular seu saldo restante, analisar gastos por categoria, comparar despesas Pessoais vs Negócio (PF/PJ), consultar seu Valor Reservado e dar dicas práticas para você economizar. Sinta-se à vontade para perguntar qualquer coisa!`;
+  }
 
   // 1. Quanto gastei / Total gasto
   if (p.includes('quanto gastei') || p.includes('total gasto') || p.includes('resumo do mês') || p.includes('resumo dos gastos')) {
@@ -224,18 +246,54 @@ function processLocalFinancialQuery(prompt: string, ctx: FinancialContext): stri
     return reply;
   }
 
-  // Resposta padrão caso nenhuma palavra-chave seja disparada
-  let defaultReply = `Olá! Sou o **NR Finance AI**, seu assistente de inteligência financeira. 🤖\n\n`;
+  // Resposta genérica inteligente baseada nos dados do usuário
+  let defaultReply = `Entendi a sua dúvida! 🤖\n\n`;
   if (summary) {
-    defaultReply += `Aqui está um resumo rápido do seu mês:\n`;
+    defaultReply += `Analisando seu mês atual:\n`;
     defaultReply += `• **Total Gasto:** ${formatCurrency(summary.totalGasto)} de ${formatCurrency(summary.limite)}\n`;
-    defaultReply += `• **Saldo Livre:** ${formatCurrency(summary.saldoRestante)}\n\n`;
+    defaultReply += `• **Saldo Disponível:** ${formatCurrency(summary.saldoRestante)}\n\n`;
   }
   defaultReply += `Você pode me perguntar coisas como:\n`;
+  defaultReply += `• *"Nossa conversa fica salva?"*\n`;
   defaultReply += `• *"Quanto me resta do orçamento?"*\n`;
   defaultReply += `• *"Resumo Pessoal vs Negócio (PF/PJ)"*\n`;
   defaultReply += `• *"Quanto gastei com Alimentação?"*\n`;
   defaultReply += `• *"Como posso economizar este mês?"*`;
 
   return defaultReply;
+}
+
+// --- PERSISTÊNCIA FIRESTORE DAS MENSAGENS DO CHAT ---
+
+export async function saveChatMessageFirestore(userId: string, message: ChatMessage): Promise<void> {
+  const ref = doc(db, 'users', userId, 'chat_messages', message.id);
+  await setDoc(ref, {
+    sender: message.sender,
+    text: message.text,
+    timestamp: Timestamp.fromDate(message.timestamp),
+  });
+}
+
+export async function getChatMessagesFirestore(userId: string): Promise<ChatMessage[]> {
+  const ref = collection(db, 'users', userId, 'chat_messages');
+  const snap = await getDocs(ref);
+
+  const list = snap.docs.map((docSnap) => {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      sender: data.sender,
+      text: data.text,
+      timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(),
+    };
+  });
+
+  return list.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+}
+
+export async function clearChatMessagesFirestore(userId: string): Promise<void> {
+  const ref = collection(db, 'users', userId, 'chat_messages');
+  const snap = await getDocs(ref);
+  const deletePromises = snap.docs.map((d) => deleteDoc(d.ref));
+  await Promise.all(deletePromises);
 }
