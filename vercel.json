@@ -1,5 +1,11 @@
 {
   "cleanUrls": true,
+  "build": {
+    "env": {
+      "EXPO_PUBLIC_PLUGGY_CLIENT_ID": "746d5f97-f800-49c1-b879-f6294e6cf326",
+      "EXPO_PUBLIC_PLUGGY_CLIENT_SECRET": "Y2wzOm0cUNFWrqF82C02atd4x7rKnJh__lgkVG5WZys"
+    }
+  },
   "rewrites": [
     {
       "source": "/(.*)",

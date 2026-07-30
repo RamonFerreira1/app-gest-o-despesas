@@ -14,8 +14,9 @@ import { PluggyItem, PluggyAccount, ExpenseOrigin, ExpenseCategory } from '../ty
 
 const PLUGGY_API_URL = 'https://api.pluggy.ai';
 
-const CLIENT_ID = process.env.EXPO_PUBLIC_PLUGGY_CLIENT_ID || '';
-const CLIENT_SECRET = process.env.EXPO_PUBLIC_PLUGGY_CLIENT_SECRET || '';
+const CLIENT_ID = process.env.EXPO_PUBLIC_PLUGGY_CLIENT_ID || '746d5f97-f800-49c1-b879-f6294e6cf326';
+const CLIENT_SECRET = process.env.EXPO_PUBLIC_PLUGGY_CLIENT_SECRET || 'Y2wzOm0cUNFWrqF82C02atd4x7rKnJh__lgkVG5WZys';
+
 
 export interface PluggyConnectTokenResponse {
   accessToken: string;
