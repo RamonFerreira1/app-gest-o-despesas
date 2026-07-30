@@ -126,6 +126,28 @@ export default function DashboardScreen({ navigation }: any) {
           {/* ── Smart Alerts (estilo Pierre) ── */}
           <SmartAlertBanner summary={summary} pendingTxs={pendingTxs} />
 
+          {/* ── Acesso Rápido ── */}
+          <View style={styles.quickAccess}>
+            {[
+              { icon: 'calendar-outline', label: 'Calendário', screen: 'Calendar', color: colors.info },
+              { icon: 'trophy-outline', label: 'Metas', screen: 'Goals', color: colors.warning },
+              { icon: 'sparkles-outline', label: 'IA Chat', screen: 'ChatAI', color: colors.primary },
+              { icon: 'settings-outline', label: 'Config', screen: 'Settings', color: colors.textSecondary },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.screen}
+                style={styles.quickBtn}
+                onPress={() => navigation.navigate(item.screen)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickIcon, { backgroundColor: `${item.color}20` }]}>
+                  <Ionicons name={item.icon as any} size={18} color={item.color} />
+                </View>
+                <Text style={styles.quickLabel}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           {/* ── Painel de Conciliação Inteligente ── */}
           {pendingTxs.length > 0 && (
             <ReconciliationPanel
@@ -265,4 +287,27 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.sm },
   emptyTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.textSecondary },
   emptySubtitle: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: 'center' },
+  quickAccess: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  quickBtn: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
+  quickIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickLabel: {
+    fontSize: 9,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
 });

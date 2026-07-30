@@ -10,13 +10,23 @@ import SettingsScreen from '../screens/SettingsScreen';
 import ChatAssistantScreen from '../screens/ChatAssistantScreen';
 import ReportsScreen from '../screens/ReportsScreen';
 import BudgetScreen from '../screens/BudgetScreen';
+import GoalsScreen from '../screens/GoalsScreen';
+import CalendarScreen from '../screens/CalendarScreen';
+
 
 const Tab = createBottomTabNavigator();
 
+// Tabs principais (mais usadas)
+const PRIMARY_TABS = ['Dashboard', 'Budget', 'NewExpense', 'Reports', 'History'];
+
 function CustomTabBar({ state, descriptors, navigation }: any) {
+  // Mostra apenas as 5 abas principais na barra inferior
+  const primaryRoutes = state.routes.filter((r: any) => PRIMARY_TABS.includes(r.name));
+
   return (
     <View style={styles.tabBar}>
-      {state.routes.map((route: any, index: number) => {
+      {primaryRoutes.map((route: any) => {
+        const index = state.routes.findIndex((r: any) => r.key === route.key);
         const { options } = descriptors[route.key];
         const isFocused = state.index === index;
         const isCenter = route.name === 'NewExpense';
@@ -46,8 +56,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
           Budget: isFocused ? 'wallet' : 'wallet-outline',
           Reports: isFocused ? 'bar-chart' : 'bar-chart-outline',
           History: isFocused ? 'list' : 'list-outline',
-          ChatAI: isFocused ? 'sparkles' : 'sparkles-outline',
-          Settings: isFocused ? 'settings' : 'settings-outline',
         };
 
         const labelMap: Record<string, string> = {
@@ -55,8 +63,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
           Budget: 'Orçamento',
           Reports: 'Relatórios',
           History: 'Histórico',
-          ChatAI: 'IA Chat',
-          Settings: 'Config',
         };
 
         return (
@@ -93,7 +99,11 @@ export default function TabNavigator() {
       <Tab.Screen name="NewExpense" component={NewExpenseScreen} />
       <Tab.Screen name="Reports" component={ReportsScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
-      <Tab.Screen name="ChatAI" component={ChatAssistantScreen} />
+      {/* Abas extras acessíveis via navegação */}
+      <Tab.Screen name="ChatAI" component={ChatAssistantScreen} options={{ tabBarButton: () => null }} />
+      <Tab.Screen name="Goals" component={GoalsScreen} options={{ tabBarButton: () => null }} />
+      <Tab.Screen name="Calendar" component={CalendarScreen} options={{ tabBarButton: () => null }} />
+      <Tab.Screen name="Settings" component={SettingsScreen} options={{ tabBarButton: () => null }} />
     </Tab.Navigator>
   );
 }

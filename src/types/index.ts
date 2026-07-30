@@ -146,5 +146,42 @@ export interface ChatMessage {
   quickActions?: { label: string; prompt: string }[];
 }
 
+export type GoalCategory =
+  | 'Viagem'
+  | 'Equipamento'
+  | 'Emergência'
+  | 'Educação'
+  | 'Casa'
+  | 'Negócio'
+  | 'Outro';
+
+export interface Goal {
+  id: string;
+  nome: string;
+  descricao?: string;
+  valorMeta: number;
+  valorAtual: number;
+  categoria: GoalCategory;
+  emoji: string;
+  cor: string;
+  prazo?: Date;
+  concluida: boolean;
+  createdAt: Date;
+}
+
+export interface GoalFirestore {
+  nome: string;
+  descricao?: string;
+  valorMeta: number;
+  valorAtual: number;
+  categoria: GoalCategory;
+  emoji: string;
+  cor: string;
+  prazo?: Timestamp;
+  concluida: boolean;
+  createdAt: Timestamp;
+}
+
+
 
 

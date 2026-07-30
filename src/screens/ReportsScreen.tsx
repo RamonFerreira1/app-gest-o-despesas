@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +15,7 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
 import { getMonthlyReports, MonthlyReport } from '../services/reportsService';
 import { formatCurrency } from '../services/insightService';
+import { exportReportToPDF } from '../services/exportService';
 import { colors, spacing, fontSize, borderRadius, shadows, categoryColors, categoryIcons } from '../theme';
 
 const { width } = Dimensions.get('window');
@@ -23,10 +25,11 @@ type Period = 3 | 6 | 12;
 
 export default function ReportsScreen() {
   const { user } = useAuthStore();
-  const { summary } = useExpenseStore();
+  const { summary, budget } = useExpenseStore();
 
   const [reports, setReports] = useState<MonthlyReport[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [period, setPeriod] = useState<Period>(6);
   const [activeTab, setActiveTab] = useState<'evolucao' | 'categorias' | 'pf_pj'>('evolucao');
 
@@ -63,6 +66,17 @@ export default function ReportsScreen() {
   const totalPJAll = reports.reduce((sum, r) => sum + r.totalNegocio, 0);
   const pctPF = totalAll > 0 ? (totalPFAll / (totalPFAll + totalPJAll)) * 100 : 50;
 
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportReportToPDF(reports, summary, budget);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível gerar o relatório PDF.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
@@ -73,6 +87,18 @@ export default function ReportsScreen() {
             <Text style={styles.title}>📈 Relatórios</Text>
             <Text style={styles.subtitle}>Análise financeira inteligente</Text>
           </View>
+          <TouchableOpacity
+            style={[styles.exportBtn, exporting && { opacity: 0.6 }]}
+            onPress={handleExport}
+            disabled={exporting || reports.length === 0}
+          >
+            {exporting ? (
+              <ActivityIndicator size="small" color="#000" />
+            ) : (
+              <Ionicons name="share-outline" size={18} color="#000" />
+            )}
+            <Text style={styles.exportBtnText}>{exporting ? 'Gerando...' : 'PDF'}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Cards de Resumo do Mês ── */}
@@ -601,5 +627,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     minWidth: 70,
     textAlign: 'right',
+  },
+  exportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: spacing.xs + 4,
+    borderRadius: borderRadius.lg,
+  },
+  exportBtnText: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+    color: '#000',
   },
 });
