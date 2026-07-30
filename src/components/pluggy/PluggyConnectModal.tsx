@@ -177,12 +177,13 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
           ) : Platform.OS === 'web' && connectToken ? (
             <View style={styles.iframeContainer}>
               <iframe
-                src={`https://connect.pluggy.ai?connectToken=${connectToken}&includeSandbox=true`}
+                src={`https://connect.pluggy.ai?connectToken=${encodeURIComponent(connectToken)}&token=${encodeURIComponent(connectToken)}&includeSandbox=true`}
                 style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }}
                 title="Pluggy Connect"
               />
             </View>
           ) : (
+
             <View style={styles.mobileHintContainer}>
               <Ionicons name="open-outline" size={48} color={colors.primary} />
               <Text style={styles.mobileHintTitle}>Janela de Autenticação Aberta</Text>

@@ -45,9 +45,15 @@ export async function getConnectToken(itemIdToUpdate?: string): Promise<string> 
     throw new Error(`Falha ao obter token da Pluggy: ${errText}`);
   }
 
-  const data: PluggyConnectTokenResponse = await response.json();
-  return data.accessToken;
+  const data: any = await response.json();
+  const token = data.accessToken || data.connectToken || data.token;
+  if (!token) {
+    throw new Error('Token de conexão não retornado pela API da Pluggy');
+  }
+
+  return token;
 }
+
 
 
 /**
