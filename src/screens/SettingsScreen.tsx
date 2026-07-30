@@ -26,6 +26,7 @@ import {
 } from '../services/pluggyService';
 import { syncPluggyTransactions } from '../services/reconciliationService';
 import { PluggyItem, PluggyAccount, ExpenseOrigin } from '../types';
+import { getCustomGeminiKey, setCustomGeminiKey } from '../services/aiConfigService';
 
 export default function SettingsScreen() {
   const { user, logout } = useAuthStore();
@@ -43,6 +44,18 @@ export default function SettingsScreen() {
   const [pluggyAccounts, setPluggyAccounts] = useState<PluggyAccount[]>([]);
   const [loadingPluggy, setLoadingPluggy] = useState(false);
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
+
+  // Estado IA Gemini Key
+  const [geminiKey, setGeminiKey] = useState('');
+
+  useEffect(() => {
+    setGeminiKey(getCustomGeminiKey());
+  }, []);
+
+  const handleSaveGeminiKey = () => {
+    setCustomGeminiKey(geminiKey);
+    Alert.alert('✅ Chave Salva', 'Configurações de IA atualizadas com sucesso!');
+  };
 
   useEffect(() => {
     if (budget) {
@@ -281,6 +294,42 @@ export default function SettingsScreen() {
           ) : (
             <Text style={styles.noConnsText}>Nenhuma conta bancária conectada no momento.</Text>
           )}
+        </View>
+
+        {/* Card Inteligência Artificial (IA Chat) */}
+        <View style={[styles.card, shadows.sm]}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.cardIcon, { backgroundColor: `${colors.primary}20` }]}>
+              <Ionicons name="sparkles" size={20} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Inteligência Artificial (IA Chat)</Text>
+              <Text style={styles.hint}>
+                {geminiKey ? '✨ Conectado à IA Real do Google Gemini' : '⚡ Motor Semântico Local Ativo'}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.label}>Chave da API do Google Gemini (opcional)</Text>
+          <View style={styles.inputRow}>
+            <Ionicons name="key-outline" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.input}
+              value={geminiKey}
+              onChangeText={setGeminiKey}
+              placeholder="Cole sua API Key (ex: AIzaSy...)"
+              placeholderTextColor={colors.textMuted}
+              secureTextEntry
+            />
+          </View>
+          <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 4, marginBottom: 12 }}>
+            💡 Obtenha uma chave 100% gratuita em <Text style={{ color: colors.primary }}>aistudio.google.com</Text> para ativar a IA do Gemini igual ao ChatGPT!
+          </Text>
+
+          <TouchableOpacity style={styles.saveKeyBtn} onPress={handleSaveGeminiKey}>
+            <Ionicons name="save-outline" size={18} color="#000" />
+            <Text style={styles.saveKeyBtnText}>Salvar Chave da IA</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Card Orçamento & Reserva */}
@@ -582,6 +631,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   saveBtnText: { fontSize: fontSize.md, fontWeight: '700', color: colors.background },
+  saveKeyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    paddingVertical: 10,
+    marginTop: spacing.xs,
+  },
+  saveKeyBtnText: { fontSize: fontSize.sm, fontWeight: '700', color: '#000' },
   accountRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md },
   accountEmail: { fontSize: fontSize.md, color: colors.textSecondary },
   logoutBtn: {
