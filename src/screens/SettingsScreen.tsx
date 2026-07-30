@@ -59,13 +59,13 @@ export default function SettingsScreen() {
     setKeySavedMsg(null);
     setKeyErrorMsg(null);
 
-    if (trimmed && !trimmed.startsWith('AIzaSy')) {
-      setKeyErrorMsg('⚠️ A chave do Gemini deve começar com "AIzaSy...". Verifique se você copiou o código correto no Google AI Studio!');
+    if (trimmed && trimmed.length < 15) {
+      setKeyErrorMsg('⚠️ Informe uma chave de API válida do Google AI Studio.');
       return;
     }
 
     setCustomGeminiKey(trimmed);
-    setKeySavedMsg(trimmed ? '✅ Chave do Gemini salva com sucesso!' : 'ℹ️ Chave removida. Usando motor semântico local.');
+    setKeySavedMsg(trimmed ? '✅ Chave do Gemini salva com sucesso! IA Ativada.' : 'ℹ️ Chave removida. Usando motor semântico local.');
     setTimeout(() => setKeySavedMsg(null), 4000);
   };
 

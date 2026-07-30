@@ -394,7 +394,14 @@ export async function askFinancialAI(
   const apiKey = getCustomGeminiKey() || process.env.EXPO_PUBLIC_GEMINI_API_KEY || '';
 
   if (apiKey) {
-    const models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+    const models = [
+      'gemini-flash-latest',
+      'gemini-2.5-flash-lite',
+      'gemini-3.5-flash',
+      'gemini-3.6-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ];
 
     for (const model of models) {
       try {
