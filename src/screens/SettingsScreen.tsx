@@ -17,6 +17,15 @@ import { useExpenseStore } from '../store/useExpenseStore';
 import { setBudget } from '../services/budgetService';
 import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 import { formatCurrency } from '../services/insightService';
+import { PluggyConnectModal } from '../components/pluggy/PluggyConnectModal';
+import {
+  getUserPluggyItems,
+  getUserPluggyAccounts,
+  updateUserPluggyAccountOrigin,
+  deleteUserPluggyItem,
+} from '../services/pluggyService';
+import { syncPluggyTransactions } from '../services/reconciliationService';
+import { PluggyItem, PluggyAccount, ExpenseOrigin } from '../types';
 
 export default function SettingsScreen() {
   const { user, logout } = useAuthStore();
@@ -28,6 +37,13 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // Estados Open Finance / Pluggy
+  const [showPluggyModal, setShowPluggyModal] = useState(false);
+  const [pluggyItems, setPluggyItems] = useState<PluggyItem[]>([]);
+  const [pluggyAccounts, setPluggyAccounts] = useState<PluggyAccount[]>([]);
+  const [loadingPluggy, setLoadingPluggy] = useState(false);
+  const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
+
   useEffect(() => {
     if (budget) {
       setLimite(budget.limite.toString());
@@ -35,6 +51,27 @@ export default function SettingsScreen() {
       setValorReservadoInput((budget.valorReservado ?? 0).toString());
     }
   }, [budget]);
+
+  useEffect(() => {
+    if (user?.uid) {
+      loadPluggyData();
+    }
+  }, [user?.uid]);
+
+  const loadPluggyData = async () => {
+    if (!user?.uid) return;
+    try {
+      setLoadingPluggy(true);
+      const items = await getUserPluggyItems(user.uid);
+      const accounts = await getUserPluggyAccounts(user.uid);
+      setPluggyItems(items);
+      setPluggyAccounts(accounts);
+    } catch (err) {
+      console.error('Erro ao carregar dados do Pluggy:', err);
+    } finally {
+      setLoadingPluggy(false);
+    }
+  };
 
   const handleSave = async () => {
     const limiteNum = parseFloat(limite.replace(',', '.'));
@@ -55,6 +92,69 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleOriginToggle = async (account: PluggyAccount, newOrigin: ExpenseOrigin) => {
+    if (!user?.uid) return;
+    try {
+      await updateUserPluggyAccountOrigin(user.uid, account.id, newOrigin);
+      setPluggyAccounts((prev) =>
+        prev.map((a) => (a.id === account.id ? { ...a, origemDefault: newOrigin } : a))
+      );
+    } catch (err) {
+      Alert.alert('Erro', 'Não foi possível atualizar a classificação da conta.');
+    }
+  };
+
+  const handleSyncItem = async (itemId: string) => {
+    if (!user?.uid) return;
+    try {
+      setSyncingItemId(itemId);
+      const newTxs = await syncPluggyTransactions(user.uid, itemId);
+      Alert.alert(
+        'Sincronização Concluída',
+        newTxs > 0
+          ? `Foram encontradas ${newTxs} novas movimentações para conciliação!`
+          : 'Sua conta já está atualizada com os lançamentos mais recentes.'
+      );
+    } catch (err) {
+      Alert.alert('Erro', 'Falha ao sincronizar extrato da instituição.');
+    } finally {
+      setSyncingItemId(null);
+    }
+  };
+
+  const handleDeleteItem = async (itemId: string, connectorName: string) => {
+    if (!user?.uid) return;
+    Alert.alert(
+      'Remover Conexão Bancária',
+      `Deseja desconectar a conta de ${connectorName}? As movimentações já conciladas continuarão salvas.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desconectar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteUserPluggyItem(user.uid, itemId);
+              await loadPluggyData();
+            } catch (err) {
+              Alert.alert('Erro', 'Não foi possível remover a conexão.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handlePluggySuccess = async (itemId: string, count: number) => {
+    await loadPluggyData();
+    Alert.alert(
+      '🎉 Banco Conectado!',
+      count > 0
+        ? `Sua conta foi vinculada e ${count} movimentações foram enviadas para a tela inicial para conciliação!`
+        : 'Sua conta bancária foi conectada com sucesso!'
+    );
+  };
+
   const confirmLogout = () => {
     setShowLogoutModal(false);
     logout();
@@ -66,6 +166,121 @@ export default function SettingsScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Configurações</Text>
           <Text style={styles.subtitle}>Personalize seu app financeiro</Text>
+        </View>
+
+        {/* Card Open Finance (Pluggy) */}
+        <View style={[styles.card, shadows.sm]}>
+          <View style={styles.cardHeader}>
+            <View style={[styles.cardIcon, { backgroundColor: `${colors.info}20` }]}>
+              <Ionicons name="card" size={20} color={colors.info} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Conexões Open Finance</Text>
+              <Text style={styles.hint}>Conecte suas contas de banco para sincronização automática</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.connectPluggyBtn}
+            onPress={() => setShowPluggyModal(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#000" />
+            <Text style={styles.connectPluggyText}>Conectar Conta Bancária (Open Finance)</Text>
+          </TouchableOpacity>
+
+          {loadingPluggy ? (
+            <ActivityIndicator style={{ marginVertical: spacing.md }} color={colors.primary} />
+          ) : pluggyItems.length > 0 ? (
+            <View style={styles.accountsSection}>
+              <Text style={styles.subSectionTitle}>Contas Conectadas & Mapeamento PF/PJ</Text>
+
+              {pluggyItems.map((item) => {
+                const accountsOfItem = pluggyAccounts.filter((a) => a.itemId === item.id);
+                const isSyncing = syncingItemId === item.id;
+
+                return (
+                  <View key={item.id} style={styles.itemBox}>
+                    <View style={styles.itemHeader}>
+                      <View style={styles.itemHeaderLeft}>
+                        <Ionicons name="business" size={18} color={colors.primary} />
+                        <Text style={styles.itemTitle}>{item.connectorName}</Text>
+                      </View>
+                      <View style={styles.itemActions}>
+                        <TouchableOpacity
+                          style={styles.iconBtn}
+                          onPress={() => handleSyncItem(item.id)}
+                          disabled={isSyncing}
+                        >
+                          {isSyncing ? (
+                            <ActivityIndicator size="small" color={colors.info} />
+                          ) : (
+                            <Ionicons name="sync-outline" size={18} color={colors.info} />
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.iconBtn}
+                          onPress={() => handleDeleteItem(item.id, item.connectorName)}
+                        >
+                          <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {accountsOfItem.map((acc) => (
+                      <View key={acc.id} style={styles.accRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.accName}>{acc.name}</Text>
+                          <Text style={styles.accSub}>
+                            Saldo: {formatCurrency(acc.balance)}
+                          </Text>
+                        </View>
+
+                        {/* Selector Pessoal (PF) vs Negócio (PJ) */}
+                        <View style={styles.toggleRow}>
+                          <TouchableOpacity
+                            style={[
+                              styles.toggleBtn,
+                              acc.origemDefault === 'pessoal' && styles.toggleBtnPessoalActive,
+                            ]}
+                            onPress={() => handleOriginToggle(acc, 'pessoal')}
+                          >
+                            <Text
+                              style={[
+                                styles.toggleText,
+                                acc.origemDefault === 'pessoal' && styles.toggleTextActive,
+                              ]}
+                            >
+                              PF
+                            </Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={[
+                              styles.toggleBtn,
+                              acc.origemDefault === 'negocio' && styles.toggleBtnNegocioActive,
+                            ]}
+                            onPress={() => handleOriginToggle(acc, 'negocio')}
+                          >
+                            <Text
+                              style={[
+                                styles.toggleText,
+                                acc.origemDefault === 'negocio' && styles.toggleTextActive,
+                              ]}
+                            >
+                              PJ
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.noConnsText}>Nenhuma conta bancária conectada no momento.</Text>
+          )}
         </View>
 
         {/* Card Orçamento & Reserva */}
@@ -167,12 +382,22 @@ export default function SettingsScreen() {
         {/* Info */}
         <View style={styles.infoBox}>
           <Text style={styles.infoText}>NR Finance v1.0</Text>
-          <Text style={styles.infoText}>Gestão de Despesas Inteligente</Text>
+          <Text style={styles.infoText}>Gestão de Despesas Inteligente com Open Finance</Text>
           <Text style={styles.infoSub}>NR Brownies e Bolos</Text>
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Pluggy Connect Modal */}
+      {user?.uid && (
+        <PluggyConnectModal
+          visible={showPluggyModal}
+          userId={user.uid}
+          onClose={() => setShowPluggyModal(false)}
+          onSuccess={handlePluggySuccess}
+        />
+      )}
 
       {/* Logout Modal */}
       <Modal visible={showLogoutModal} transparent animationType="fade">
@@ -222,7 +447,115 @@ const styles = StyleSheet.create({
   cardIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: fontSize.lg, fontWeight: '700', color: colors.textPrimary },
   label: { fontSize: fontSize.xs, fontWeight: '600', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: spacing.xs },
-  hint: { fontSize: fontSize.xs, color: colors.textMuted, marginBottom: spacing.sm, marginTop: -4 },
+  hint: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  connectPluggyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    borderRadius: borderRadius.md,
+    marginVertical: spacing.sm,
+  },
+  connectPluggyText: {
+    color: '#000',
+    fontWeight: '700',
+    fontSize: fontSize.sm,
+  },
+  accountsSection: {
+    marginTop: spacing.md,
+  },
+  subSectionTitle: {
+    fontSize: fontSize.xs,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: spacing.sm,
+  },
+  itemBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: borderRadius.md,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  itemHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  itemTitle: {
+    fontSize: fontSize.md,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  itemActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  iconBtn: {
+    padding: 4,
+  },
+  accRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    marginTop: 6,
+  },
+  accName: {
+    fontSize: fontSize.sm,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  accSub: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.sm,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  toggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+  },
+  toggleBtnPessoalActive: {
+    backgroundColor: colors.pessoal,
+  },
+  toggleBtnNegocioActive: {
+    backgroundColor: colors.negocio,
+  },
+  toggleText: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  toggleTextActive: {
+    color: '#FFF',
+    fontWeight: '800',
+  },
+  noConnsText: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',

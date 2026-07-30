@@ -82,3 +82,60 @@ export interface MonthSummary {
   saldoReservaRestante: number;
 }
 
+export interface PluggyItem {
+  id: string;
+  connectorId: number;
+  connectorName: string;
+  connectorLogo?: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PluggyAccount {
+  id: string;
+  itemId: string;
+  name: string;
+  number?: string;
+  balance: number;
+  type: string;
+  subtype?: string;
+  bankName: string;
+  origemDefault: ExpenseOrigin; // 'pessoal' | 'negocio'
+}
+
+export type PendingTransactionStatus = 'pending' | 'imported' | 'ignored';
+
+export interface PendingTransaction {
+  id: string;
+  pluggyTransactionId: string;
+  itemId: string;
+  accountId: string;
+  bankName: string;
+  description: string;
+  amount: number; // sempre valor positivo (para despesas)
+  date: Date;
+  pluggyCategory?: string;
+  suggestedCategory: ExpenseCategory;
+  suggestedOrigin: ExpenseOrigin;
+  status: PendingTransactionStatus;
+  createdAt: Date;
+}
+
+export interface PendingTransactionFirestore {
+  id?: string;
+  pluggyTransactionId: string;
+  itemId: string;
+  accountId: string;
+  bankName: string;
+  description: string;
+  amount: number;
+  date: Timestamp;
+  pluggyCategory?: string;
+  suggestedCategory: ExpenseCategory;
+  suggestedOrigin: ExpenseOrigin;
+  status: PendingTransactionStatus;
+  createdAt: Timestamp;
+}
+
+

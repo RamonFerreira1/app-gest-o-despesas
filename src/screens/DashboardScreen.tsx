@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -22,14 +22,27 @@ import CategoryPieChart from '../components/dashboard/CategoryPieChart';
 import PersonalVsBusinessBar from '../components/dashboard/PersonalVsBusinessBar';
 import InsightCard from '../components/dashboard/InsightCard';
 import ExpenseListItem from '../components/expenses/ExpenseListItem';
+import { ReconciliationPanel } from '../components/dashboard/ReconciliationPanel';
+import {
+  getPendingTransactions,
+  approvePendingTransaction,
+  ignorePendingTransaction,
+} from '../services/reconciliationService';
+import { PendingTransaction, ExpenseCategory, ExpenseOrigin } from '../types';
 
 export default function DashboardScreen() {
   const { user } = useAuthStore();
   const { expenses, summary, insights, loading, loadData } = useExpenseStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const [pendingTxs, setPendingTxs] = useState<PendingTransaction[]>([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+
   useEffect(() => {
-    if (user) loadData(user.uid);
+    if (user) {
+      loadData(user.uid);
+      loadPendingTransactions();
+    }
   }, [user]);
 
   useEffect(() => {
@@ -40,8 +53,41 @@ export default function DashboardScreen() {
     }).start();
   }, []);
 
-  const onRefresh = () => {
-    if (user) loadData(user.uid);
+  const loadPendingTransactions = async () => {
+    if (!user?.uid) return;
+    try {
+      setLoadingPending(true);
+      const txs = await getPendingTransactions(user.uid);
+      setPendingTxs(txs);
+    } catch (err) {
+      console.error('Erro ao carregar movimentações pendentes:', err);
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    if (user) {
+      await loadData(user.uid);
+      await loadPendingTransactions();
+    }
+  };
+
+  const handleApprovePending = async (
+    pendingTx: PendingTransaction,
+    category: ExpenseCategory,
+    origin: ExpenseOrigin
+  ) => {
+    if (!user?.uid) return;
+    await approvePendingTransaction(user.uid, pendingTx, { categoria: category, origem: origin });
+    await loadPendingTransactions();
+    await loadData(user.uid);
+  };
+
+  const handleIgnorePending = async (pendingTxId: string) => {
+    if (!user?.uid) return;
+    await ignorePendingTransaction(user.uid, pendingTxId);
+    await loadPendingTransactions();
   };
 
   const hora = new Date().getHours();
@@ -55,7 +101,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={loading}
+            refreshing={loading || loadingPending}
             onRefresh={onRefresh}
             tintColor={colors.primary}
             colors={[colors.primary]}
@@ -73,6 +119,16 @@ export default function DashboardScreen() {
               <Ionicons name="person" size={18} color={colors.primary} />
             </View>
           </View>
+
+          {/* ── Painel de Conciliação Inteligente ── */}
+          {pendingTxs.length > 0 && (
+            <ReconciliationPanel
+              pendingTransactions={pendingTxs}
+              onApprove={handleApprovePending}
+              onIgnore={handleIgnorePending}
+              onRefresh={loadPendingTransactions}
+            />
+          )}
 
           {/* ── Saldo Hero Card ── */}
           <View style={[styles.heroCard, shadows.md]}>
