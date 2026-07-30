@@ -26,21 +26,16 @@ export interface PluggyConnectTokenResponse {
  * Gera um Connect Token de uso único/temporário para abrir a janela do Pluggy Connect Widget.
  */
 export async function getConnectToken(itemIdToUpdate?: string): Promise<string> {
-  if (!CLIENT_ID || !CLIENT_SECRET) {
-    throw new Error(
-      'Chaves da Pluggy (EXPO_PUBLIC_PLUGGY_CLIENT_ID / EXPO_PUBLIC_PLUGGY_CLIENT_SECRET) não configuradas no .env'
-    );
-  }
+  const apiKey = await getApiKey();
 
   const response = await fetch(`${PLUGGY_API_URL}/connect_token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'X-API-KEY': apiKey,
     },
     body: JSON.stringify({
-      clientId: CLIENT_ID,
-      clientSecret: CLIENT_SECRET,
       itemId: itemIdToUpdate || undefined,
     }),
   });
@@ -53,6 +48,7 @@ export async function getConnectToken(itemIdToUpdate?: string): Promise<string> 
   const data: PluggyConnectTokenResponse = await response.json();
   return data.accessToken;
 }
+
 
 /**
  * Gera uma chave de API para chamadas diretas aos endpoints REST da Pluggy.

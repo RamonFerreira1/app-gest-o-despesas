@@ -25,10 +25,11 @@ import {
  */
 export async function getPendingTransactions(userId: string): Promise<PendingTransaction[]> {
   const ref = collection(db, 'users', userId, 'pending_transactions');
-  const q = query(ref, where('status', '==', 'pending'), orderBy('date', 'desc'));
+  // Consulta filtrando por status (sem orderBy na query para não exigir índice composto no Firestore)
+  const q = query(ref, where('status', '==', 'pending'));
   const snap = await getDocs(q);
 
-  return snap.docs.map((docSnap) => {
+  const list = snap.docs.map((docSnap) => {
     const data = docSnap.data();
     return {
       id: docSnap.id,
@@ -46,7 +47,10 @@ export async function getPendingTransactions(userId: string): Promise<PendingTra
       createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
     };
   });
+
+  return list.sort((a, b) => b.date.getTime() - a.date.getTime());
 }
+
 
 /**
  * Sincroniza e busca movimentações recentes dos bancos conectados via Pluggy
