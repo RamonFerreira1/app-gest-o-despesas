@@ -136,12 +136,17 @@ export default function ChatAssistantScreen() {
     setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
 
     try {
-      const replyText = await askFinancialAI(textToSend, {
-        expenses,
-        summary,
-        budget,
-        pendingTransactions: pendingTxs,
-      });
+      const replyText = await askFinancialAI(
+        textToSend,
+        {
+          expenses,
+          summary,
+          budget,
+          pendingTransactions: pendingTxs,
+        },
+        messages
+      );
+
 
       const aiMsg: ChatMessage = {
         id: Math.random().toString(),
