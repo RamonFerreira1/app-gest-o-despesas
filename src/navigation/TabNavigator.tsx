@@ -7,6 +7,7 @@ import DashboardScreen from '../screens/DashboardScreen';
 import NewExpenseScreen from '../screens/NewExpenseScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import ChatAssistantScreen from '../screens/ChatAssistantScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -40,12 +41,14 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
         const iconMap: Record<string, any> = {
           Dashboard: isFocused ? 'grid' : 'grid-outline',
+          ChatAI: isFocused ? 'sparkles' : 'sparkles-outline',
           History: isFocused ? 'list' : 'list-outline',
           Settings: isFocused ? 'settings' : 'settings-outline',
         };
 
         const labelMap: Record<string, string> = {
           Dashboard: 'Início',
+          ChatAI: 'IA Chat',
           History: 'Histórico',
           Settings: 'Config',
         };
@@ -80,6 +83,7 @@ export default function TabNavigator() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
+      <Tab.Screen name="ChatAI" component={ChatAssistantScreen} />
       <Tab.Screen name="NewExpense" component={NewExpenseScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />

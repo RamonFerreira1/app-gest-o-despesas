@@ -23,6 +23,7 @@ import PersonalVsBusinessBar from '../components/dashboard/PersonalVsBusinessBar
 import InsightCard from '../components/dashboard/InsightCard';
 import ExpenseListItem from '../components/expenses/ExpenseListItem';
 import { ReconciliationPanel } from '../components/dashboard/ReconciliationPanel';
+import { FloatingChatButton } from '../components/chat/FloatingChatButton';
 import {
   getPendingTransactions,
   approvePendingTransaction,
@@ -30,7 +31,8 @@ import {
 } from '../services/reconciliationService';
 import { PendingTransaction, ExpenseCategory, ExpenseOrigin } from '../types';
 
-export default function DashboardScreen() {
+export default function DashboardScreen({ navigation }: any) {
+
   const { user } = useAuthStore();
   const { expenses, summary, insights, loading, loadData } = useExpenseStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -210,9 +212,11 @@ export default function DashboardScreen() {
           <View style={{ height: 24 }} />
         </Animated.View>
       </ScrollView>
+      <FloatingChatButton onPress={() => navigation.navigate('ChatAI')} />
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
