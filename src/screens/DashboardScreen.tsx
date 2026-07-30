@@ -23,6 +23,7 @@ import PersonalVsBusinessBar from '../components/dashboard/PersonalVsBusinessBar
 import InsightCard from '../components/dashboard/InsightCard';
 import ExpenseListItem from '../components/expenses/ExpenseListItem';
 import { ReconciliationPanel } from '../components/dashboard/ReconciliationPanel';
+import { SmartAlertBanner } from '../components/dashboard/SmartAlertBanner';
 import { FloatingChatButton } from '../components/chat/FloatingChatButton';
 import {
   getPendingTransactions,
@@ -121,6 +122,9 @@ export default function DashboardScreen({ navigation }: any) {
               <Ionicons name="person" size={18} color={colors.primary} />
             </View>
           </View>
+
+          {/* ── Smart Alerts (estilo Pierre) ── */}
+          <SmartAlertBanner summary={summary} pendingTxs={pendingTxs} />
 
           {/* ── Painel de Conciliação Inteligente ── */}
           {pendingTxs.length > 0 && (

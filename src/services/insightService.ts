@@ -118,6 +118,13 @@ export function generateInsights(
   return insights;
 }
 
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: number, compact = false): string {
+  if (compact) {
+    if (Math.abs(value) >= 1000) {
+      return `R$ ${(value / 1000).toFixed(1).replace('.', ',')}K`;
+    }
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
+

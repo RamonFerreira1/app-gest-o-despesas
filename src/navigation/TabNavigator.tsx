@@ -8,6 +8,8 @@ import NewExpenseScreen from '../screens/NewExpenseScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ChatAssistantScreen from '../screens/ChatAssistantScreen';
+import ReportsScreen from '../screens/ReportsScreen';
+import BudgetScreen from '../screens/BudgetScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -33,7 +35,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               activeOpacity={0.85}
             >
               <View style={styles.centerBtnInner}>
-                <Ionicons name="add" size={32} color={colors.background} />
+                <Ionicons name="add" size={28} color={colors.background} />
               </View>
             </TouchableOpacity>
           );
@@ -41,15 +43,19 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
         const iconMap: Record<string, any> = {
           Dashboard: isFocused ? 'grid' : 'grid-outline',
-          ChatAI: isFocused ? 'sparkles' : 'sparkles-outline',
+          Budget: isFocused ? 'wallet' : 'wallet-outline',
+          Reports: isFocused ? 'bar-chart' : 'bar-chart-outline',
           History: isFocused ? 'list' : 'list-outline',
+          ChatAI: isFocused ? 'sparkles' : 'sparkles-outline',
           Settings: isFocused ? 'settings' : 'settings-outline',
         };
 
         const labelMap: Record<string, string> = {
           Dashboard: 'Início',
-          ChatAI: 'IA Chat',
+          Budget: 'Orçamento',
+          Reports: 'Relatórios',
           History: 'Histórico',
+          ChatAI: 'IA Chat',
           Settings: 'Config',
         };
 
@@ -61,12 +67,12 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             activeOpacity={0.7}
           >
             <Ionicons
-              name={iconMap[route.name]}
-              size={22}
+              name={iconMap[route.name] ?? 'ellipse-outline'}
+              size={21}
               color={isFocused ? colors.primary : colors.textMuted}
             />
             <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-              {labelMap[route.name]}
+              {labelMap[route.name] ?? route.name}
             </Text>
             {isFocused && <View style={styles.activeDot} />}
           </TouchableOpacity>
@@ -83,10 +89,11 @@ export default function TabNavigator() {
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="ChatAI" component={ChatAssistantScreen} />
+      <Tab.Screen name="Budget" component={BudgetScreen} />
       <Tab.Screen name="NewExpense" component={NewExpenseScreen} />
+      <Tab.Screen name="Reports" component={ReportsScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
-      <Tab.Screen name="Settings" component={SettingsScreen} />
+      <Tab.Screen name="ChatAI" component={ChatAssistantScreen} />
     </Tab.Navigator>
   );
 }
@@ -105,16 +112,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
-    gap: 3,
+    paddingVertical: 2,
+    gap: 2,
   },
   tabLabel: {
-    fontSize: fontSize.xs,
+    fontSize: 9,
     color: colors.textMuted,
     fontWeight: '500',
   },
   tabLabelActive: {
     color: colors.primary,
+    fontWeight: '700',
   },
   activeDot: {
     width: 4,
@@ -127,12 +135,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   centerBtnInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
