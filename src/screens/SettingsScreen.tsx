@@ -47,14 +47,26 @@ export default function SettingsScreen() {
 
   // Estado IA Gemini Key
   const [geminiKey, setGeminiKey] = useState('');
+  const [keySavedMsg, setKeySavedMsg] = useState<string | null>(null);
+  const [keyErrorMsg, setKeyErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setGeminiKey(getCustomGeminiKey());
   }, []);
 
   const handleSaveGeminiKey = () => {
-    setCustomGeminiKey(geminiKey);
-    Alert.alert('✅ Chave Salva', 'Configurações de IA atualizadas com sucesso!');
+    const trimmed = geminiKey.trim();
+    setKeySavedMsg(null);
+    setKeyErrorMsg(null);
+
+    if (trimmed && !trimmed.startsWith('AIzaSy')) {
+      setKeyErrorMsg('⚠️ A chave do Gemini deve começar com "AIzaSy...". Verifique se você copiou o código correto no Google AI Studio!');
+      return;
+    }
+
+    setCustomGeminiKey(trimmed);
+    setKeySavedMsg(trimmed ? '✅ Chave do Gemini salva com sucesso!' : 'ℹ️ Chave removida. Usando motor semântico local.');
+    setTimeout(() => setKeySavedMsg(null), 4000);
   };
 
   useEffect(() => {
@@ -325,6 +337,18 @@ export default function SettingsScreen() {
           <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 4, marginBottom: 12 }}>
             💡 Obtenha uma chave 100% gratuita em <Text style={{ color: colors.primary }}>aistudio.google.com</Text> para ativar a IA do Gemini igual ao ChatGPT!
           </Text>
+
+          {keyErrorMsg && (
+            <View style={{ backgroundColor: '#FF4D4D20', borderColor: '#FF4D4D', borderWidth: 1, borderRadius: borderRadius.md, padding: 10, marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: '#FF4D4D', lineHeight: 16 }}>{keyErrorMsg}</Text>
+            </View>
+          )}
+
+          {keySavedMsg && (
+            <View style={{ backgroundColor: '#00E67620', borderColor: '#00E676', borderWidth: 1, borderRadius: borderRadius.md, padding: 10, marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: '#00E676', fontWeight: '700' }}>{keySavedMsg}</Text>
+            </View>
+          )}
 
           <TouchableOpacity style={styles.saveKeyBtn} onPress={handleSaveGeminiKey}>
             <Ionicons name="save-outline" size={18} color="#000" />
