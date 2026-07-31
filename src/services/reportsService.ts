@@ -101,3 +101,35 @@ export async function getMonthlyReports(userId: string, monthsBack: number = 6):
 
   return reports;
 }
+
+export interface DRESummary {
+  receitaBruta: number;        // Renda mensal cadastrada no orçamento da empresa
+  custoFornecedores: number;  // Despesas da categoria 'Fornecedores' (PJ)
+  outrasDespesasPJ: number;   // Outras despesas operacionais da origem 'negocio'
+  totalCustosPJ: number;      // Soma dos custos e despesas da empresa
+  resultadoLiquido: number;   // receitaBruta - totalCustosPJ (Lucro ou Prejuízo)
+  margemLucroPercent: number; // (resultadoLiquido / receitaBruta) * 100
+}
+
+export function calcDRESummary(expenses: Expense[], rendaMensalPJ: number = 0): DRESummary {
+  const negocioExpenses = expenses.filter((e) => e.origem === 'negocio' && (e.fontePagamento ?? 'corrente') !== 'reservado');
+  const custoFornecedores = negocioExpenses
+    .filter((e) => e.categoria === 'Fornecedores')
+    .reduce((sum, e) => sum + e.valor, 0);
+  const outrasDespesasPJ = negocioExpenses
+    .filter((e) => e.categoria !== 'Fornecedores')
+    .reduce((sum, e) => sum + e.valor, 0);
+
+  const totalCustosPJ = custoFornecedores + outrasDespesasPJ;
+  const resultadoLiquido = rendaMensalPJ - totalCustosPJ;
+  const margemLucroPercent = rendaMensalPJ > 0 ? (resultadoLiquido / rendaMensalPJ) * 100 : 0;
+
+  return {
+    receitaBruta: rendaMensalPJ,
+    custoFornecedores,
+    outrasDespesasPJ,
+    totalCustosPJ,
+    resultadoLiquido,
+    margemLucroPercent,
+  };
+}

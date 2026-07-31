@@ -19,6 +19,11 @@ import {
   getUserPluggyAccounts,
   mapPluggyCategoryToExpenseCategory,
 } from './pluggyService';
+import {
+  getUserCategoryRules,
+  saveUserCategoryRule,
+  applyUserCategoryRules,
+} from './categoryRuleService';
 
 /**
  * Busca todas as movimentações pendentes de conciliação do usuário.
@@ -68,6 +73,9 @@ export async function syncPluggyTransactions(
   const accounts = await fetchPluggyAccounts(itemId, apiKey);
   const userAccounts = await getUserPluggyAccounts(userId);
 
+  // Carrega as regras de categorização aprendidas do usuário
+  const userRules = await getUserCategoryRules(userId);
+
   // Busca todos os gastos existentes para detecção de duplicados
   let existingExpenses: any[] = [];
   try {
@@ -92,7 +100,7 @@ export async function syncPluggyTransactions(
 
   for (const account of accounts) {
     const matchingUserAcc = userAccounts.find((a) => a.id === account.id);
-    const suggestedOrigin: ExpenseOrigin = matchingUserAcc?.origemDefault || 'pessoal';
+    const defaultOrigin: ExpenseOrigin = matchingUserAcc?.origemDefault || 'pessoal';
     const bankName = matchingUserAcc?.bankName || account.name || 'Banco';
 
     const pluggyTxs = await fetchPluggyTransactions(account.id, apiKey, fromStr);
@@ -119,8 +127,16 @@ export async function syncPluggyTransactions(
       );
 
       if (snap.empty) {
-        const cat = mapPluggyCategoryToExpenseCategory(tx.category);
+        const defaultCat = mapPluggyCategoryToExpenseCategory(tx.category);
         const txDate = tx.date ? new Date(tx.date) : new Date();
+
+        // Aplica regras de aprendizado salvas pelo usuário (se houver correspondência com a descrição)
+        const { category: suggestedCategory, origin: suggestedOrigin } = applyUserCategoryRules(
+          tx.description || '',
+          userRules,
+          defaultCat,
+          defaultOrigin
+        );
 
         // Checa se já existe um gasto manual cadastrado com mesmo valor e data aproximada (±2 dias)
         const matchingExpense = existingExpenses.find((exp) => {
@@ -139,7 +155,7 @@ export async function syncPluggyTransactions(
           amount: positiveAmount,
           date: Timestamp.fromDate(txDate),
           pluggyCategory: tx.category || null,
-          suggestedCategory: cat,
+          suggestedCategory,
           suggestedOrigin,
           status: 'pending',
           isPossibleDuplicate: !!matchingExpense,
@@ -157,6 +173,7 @@ export async function syncPluggyTransactions(
 
 /**
  * Aprova uma movimentação pendente, convertendo-a em uma Despesa (Expense) no NRFinance.
+ * Também memoriza a preferência do usuário para futuras sincronizações.
  */
 export async function approvePendingTransaction(
   userId: string,
@@ -184,7 +201,14 @@ export async function approvePendingTransaction(
     fontePagamento: 'corrente',
   });
 
-  // 2. Marcar a transação pendente como importada
+  // 2. Memorizar a regra de categorização do usuário para esta descrição/estabelecimento
+  try {
+    await saveUserCategoryRule(userId, pendingTx.description, categoria, origem);
+  } catch (ruleErr) {
+    console.warn('Erro ao salvar regra de aprendizado de categorização:', ruleErr);
+  }
+
+  // 3. Marcar a transação pendente como importada
   const pendingRef = doc(db, 'users', userId, 'pending_transactions', pendingTx.id);
   await updateDoc(pendingRef, {
     status: 'imported',

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/useAuthStore';
 import { useExpenseStore } from '../store/useExpenseStore';
-import { getMonthlyReports, MonthlyReport } from '../services/reportsService';
+import { getMonthlyReports, MonthlyReport, calcDRESummary } from '../services/reportsService';
 import { formatCurrency } from '../services/insightService';
 import { exportReportToPDF } from '../services/exportService';
 import { colors, spacing, fontSize, borderRadius, shadows, categoryColors, categoryIcons } from '../theme';
@@ -25,13 +25,13 @@ type Period = 3 | 6 | 12;
 
 export default function ReportsScreen() {
   const { user } = useAuthStore();
-  const { summary, budget } = useExpenseStore();
+  const { expenses, summary, budget } = useExpenseStore();
 
   const [reports, setReports] = useState<MonthlyReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [period, setPeriod] = useState<Period>(6);
-  const [activeTab, setActiveTab] = useState<'evolucao' | 'categorias' | 'pf_pj'>('evolucao');
+  const [activeTab, setActiveTab] = useState<'evolucao' | 'categorias' | 'pf_pj' | 'dre_pj'>('evolucao');
 
   useEffect(() => {
     if (user?.uid) loadReports(period);
@@ -49,6 +49,8 @@ export default function ReportsScreen() {
       setLoading(false);
     }
   };
+
+  const dre = calcDRESummary(expenses, budget?.rendaMensal ?? 0);
 
   const maxTotal = Math.max(...reports.map((r) => r.total), 1);
 
@@ -142,8 +144,13 @@ export default function ReportsScreen() {
 
         {/* ── Tabs ── */}
         <View style={styles.tabsRow}>
-          {(['evolucao', 'categorias', 'pf_pj'] as const).map((tab) => {
-            const labels = { evolucao: '📊 Evolução', categorias: '🏷️ Categorias', pf_pj: '⚖️ PF vs PJ' };
+          {(['evolucao', 'categorias', 'pf_pj', 'dre_pj'] as const).map((tab) => {
+            const labels = {
+              evolucao: '📊 Evolução',
+              categorias: '🏷️ Categorias',
+              pf_pj: '⚖️ PF vs PJ',
+              dre_pj: '💼 DRE NR Brownies',
+            };
             return (
               <TouchableOpacity
                 key={tab}
@@ -306,6 +313,78 @@ export default function ReportsScreen() {
                     </View>
                   </View>
                 ))}
+              </View>
+            )}
+
+            {/* ── TAB: DRE NR Brownies ── */}
+            {activeTab === 'dre_pj' && (
+              <View style={[styles.card, shadows.md]}>
+                <Text style={styles.cardTitle}>💼 Demonstrativo do Negócio (NR Brownies)</Text>
+                <Text style={styles.subtitle}>Resultado de Exercício Simplificado deste mês</Text>
+
+                <View style={{ gap: 12, marginTop: 16 }}>
+                  {/* Receita Bruta */}
+                  <View style={styles.dreRow}>
+                    <View style={styles.dreLabelRow}>
+                      <Ionicons name="arrow-up-circle" size={20} color={colors.success} />
+                      <Text style={styles.dreLabel}>Faturamento / Renda do Mês</Text>
+                    </View>
+                    <Text style={[styles.dreVal, { color: colors.success }]}>
+                      + {formatCurrency(dre.receitaBruta)}
+                    </Text>
+                  </View>
+
+                  {/* Custos com Fornecedores */}
+                  <View style={styles.dreRow}>
+                    <View style={styles.dreLabelRow}>
+                      <Ionicons name="basket-outline" size={20} color={colors.warning} />
+                      <Text style={styles.dreLabel}>(-) Insumos & Fornecedores</Text>
+                    </View>
+                    <Text style={[styles.dreVal, { color: colors.warning }]}>
+                      - {formatCurrency(dre.custoFornecedores)}
+                    </Text>
+                  </View>
+
+                  {/* Outras Despesas Operacionais */}
+                  <View style={styles.dreRow}>
+                    <View style={styles.dreLabelRow}>
+                      <Ionicons name="card-outline" size={20} color={colors.danger} />
+                      <Text style={styles.dreLabel}>(-) Outras Despesas PJ</Text>
+                    </View>
+                    <Text style={[styles.dreVal, { color: colors.danger }]}>
+                      - {formatCurrency(dre.outrasDespesasPJ)}
+                    </Text>
+                  </View>
+
+                  <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 4 }} />
+
+                  {/* Resultado Líquido */}
+                  <View style={[styles.dreResultBox, dre.resultadoLiquido >= 0 ? styles.dreResultSuccess : styles.dreResultDanger]}>
+                    <View style={styles.dreLabelRow}>
+                      <Ionicons
+                        name={dre.resultadoLiquido >= 0 ? 'trending-up' : 'trending-down'}
+                        size={24}
+                        color={dre.resultadoLiquido >= 0 ? colors.success : colors.danger}
+                      />
+                      <View>
+                        <Text style={styles.dreResultTitle}>Resultado Líquido do Negócio</Text>
+                        <Text style={styles.dreResultSub}>
+                          {dre.resultadoLiquido >= 0 ? 'Lucro do Mês' : 'Prejuízo Operacional'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={[styles.dreResultValue, { color: dre.resultadoLiquido >= 0 ? colors.success : colors.danger }]}>
+                      {formatCurrency(dre.resultadoLiquido)}
+                    </Text>
+                  </View>
+
+                  {dre.receitaBruta > 0 && (
+                    <Text style={styles.margemText}>
+                      Margem de Lucro Operacional: <Text style={{ fontWeight: '800', color: colors.primary }}>{dre.margemLucroPercent.toFixed(1)}%</Text>
+                    </Text>
+                  )}
+                </View>
               </View>
             )}
           </>
@@ -641,5 +720,61 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     fontWeight: '700',
     color: '#000',
+  },
+  dreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  dreLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dreLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  dreVal: {
+    fontSize: fontSize.sm,
+    fontWeight: '700',
+  },
+  dreResultBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginTop: 4,
+  },
+  dreResultSuccess: {
+    backgroundColor: '#00E67615',
+    borderColor: colors.success,
+  },
+  dreResultDanger: {
+    backgroundColor: '#FF4D4D15',
+    borderColor: colors.danger,
+  },
+  dreResultTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  dreResultSub: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+  },
+  dreResultValue: {
+    fontSize: fontSize.lg,
+    fontWeight: '800',
+  },
+  margemText: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

@@ -6,6 +6,7 @@ export const colors = {
   primary: '#00E676',
   primaryDim: '#00E67620',
   primaryDark: '#00B85C',
+  success: '#00E676',
   danger: '#FF4D4D',
   dangerDim: '#FF4D4D20',
   warning: '#FF9100',

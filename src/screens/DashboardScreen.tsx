@@ -25,6 +25,7 @@ import ExpenseListItem from '../components/expenses/ExpenseListItem';
 import { ReconciliationPanel } from '../components/dashboard/ReconciliationPanel';
 import { SmartAlertBanner } from '../components/dashboard/SmartAlertBanner';
 import { FloatingChatButton } from '../components/chat/FloatingChatButton';
+import { PurchaseSimulatorModal } from '../components/dashboard/PurchaseSimulatorModal';
 import {
   getPendingTransactions,
   approvePendingTransaction,
@@ -35,11 +36,12 @@ import { PendingTransaction, ExpenseCategory, ExpenseOrigin } from '../types';
 export default function DashboardScreen({ navigation }: any) {
 
   const { user } = useAuthStore();
-  const { expenses, summary, insights, loading, loadData } = useExpenseStore();
+  const { expenses, budget, summary, insights, loading, loadData } = useExpenseStore();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [pendingTxs, setPendingTxs] = useState<PendingTransaction[]>([]);
   const [loadingPending, setLoadingPending] = useState(false);
+  const [showSimulatorModal, setShowSimulatorModal] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -99,6 +101,12 @@ export default function DashboardScreen({ navigation }: any) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <PurchaseSimulatorModal 
+        visible={showSimulatorModal} 
+        budget={budget}
+        currentTotalGasto={summary?.totalGasto ?? 0}
+        onClose={() => setShowSimulatorModal(false)} 
+      />
       <ScrollView
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
@@ -129,15 +137,15 @@ export default function DashboardScreen({ navigation }: any) {
           {/* ── Acesso Rápido ── */}
           <View style={styles.quickAccess}>
             {[
-              { icon: 'calendar-outline', label: 'Calendário', screen: 'Calendar', color: colors.info },
-              { icon: 'trophy-outline', label: 'Metas', screen: 'Goals', color: colors.warning },
-              { icon: 'sparkles-outline', label: 'IA Chat', screen: 'ChatAI', color: colors.primary },
-              { icon: 'settings-outline', label: 'Config', screen: 'Settings', color: colors.textSecondary },
-            ].map((item) => (
+              { icon: 'sparkles-outline', label: 'Simular', action: () => setShowSimulatorModal(true), color: colors.primary },
+              { icon: 'calendar-outline', label: 'Calendário', action: () => navigation.navigate('Calendar'), color: colors.info },
+              { icon: 'trophy-outline', label: 'Metas', action: () => navigation.navigate('Goals'), color: colors.warning },
+              { icon: 'settings-outline', label: 'Config', action: () => navigation.navigate('Settings'), color: colors.textSecondary },
+            ].map((item, idx) => (
               <TouchableOpacity
-                key={item.screen}
+                key={idx}
                 style={styles.quickBtn}
-                onPress={() => navigation.navigate(item.screen)}
+                onPress={item.action}
                 activeOpacity={0.7}
               >
                 <View style={[styles.quickIcon, { backgroundColor: `${item.color}20` }]}>
