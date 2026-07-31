@@ -44,6 +44,7 @@ export default function SettingsScreen() {
   const [pluggyAccounts, setPluggyAccounts] = useState<PluggyAccount[]>([]);
   const [loadingPluggy, setLoadingPluggy] = useState(false);
   const [syncingItemId, setSyncingItemId] = useState<string | null>(null);
+  const [syncDaysBack, setSyncDaysBack] = useState<number>(30); // 0 = Apenas após conectar, 15, 30, 60, 90
 
   // Estado IA Gemini Key
   const [geminiKey, setGeminiKey] = useState('');
@@ -133,7 +134,7 @@ export default function SettingsScreen() {
     if (!user?.uid) return;
     try {
       setSyncingItemId(itemId);
-      const newTxs = await syncPluggyTransactions(user.uid, itemId);
+      const newTxs = await syncPluggyTransactions(user.uid, itemId, syncDaysBack);
       Alert.alert(
         'Sincronização Concluída',
         newTxs > 0
@@ -203,6 +204,36 @@ export default function SettingsScreen() {
               <Text style={styles.cardTitle}>Conexões Open Finance</Text>
               <Text style={styles.hint}>Conecte suas contas de banco para sincronização automática</Text>
             </View>
+          </View>
+
+          {/* Seletor de Período Retroativo */}
+          <Text style={[styles.label, { marginTop: spacing.sm }]}>Histórico de Busca na Sincronização</Text>
+          <Text style={[styles.hint, { marginBottom: 8 }]}>Defina se deseja buscar apenas gastos recentes ou histórico anterior</Text>
+          <View style={styles.periodRow}>
+            {[
+              { label: 'Apenas Hoje', days: 0 },
+              { label: '15 Dias', days: 15 },
+              { label: '30 Dias', days: 30 },
+              { label: '60 Dias', days: 60 },
+            ].map((p) => (
+              <TouchableOpacity
+                key={p.days}
+                style={[
+                  styles.periodChip,
+                  syncDaysBack === p.days && styles.periodChipActive,
+                ]}
+                onPress={() => setSyncDaysBack(p.days)}
+              >
+                <Text
+                  style={[
+                    styles.periodChipText,
+                    syncDaysBack === p.days && styles.periodChipTextActive,
+                  ]}
+                >
+                  {p.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           <TouchableOpacity
@@ -695,4 +726,31 @@ const styles = StyleSheet.create({
   modalBtnTextCancel: { color: colors.textSecondary, fontWeight: '600', fontSize: fontSize.md },
   modalBtnDangerRow: { backgroundColor: colors.danger },
   modalBtnTextDanger: { color: colors.background, fontWeight: '700', fontSize: fontSize.md },
+  periodRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: spacing.md,
+  },
+  periodChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  periodChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  periodChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  periodChipTextActive: {
+    color: '#000',
+    fontWeight: '800',
+  },
 });

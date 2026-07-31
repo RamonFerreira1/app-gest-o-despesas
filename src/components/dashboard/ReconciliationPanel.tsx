@@ -115,6 +115,16 @@ export const ReconciliationPanel: React.FC<ReconciliationPanelProps> = ({
                 <Text style={styles.dateText}>{formatDate(tx.date)}</Text>
               </View>
 
+              {/* Tag de Possível Duplicado de Gasto Já Cadastrado */}
+              {tx.isPossibleDuplicate && (
+                <View style={styles.duplicateTag}>
+                  <Ionicons name="warning-outline" size={12} color={colors.warning} />
+                  <Text style={styles.duplicateText} numberOfLines={1}>
+                    Já cadastrado{tx.matchedExpenseName ? `: "${tx.matchedExpenseName}"` : ''}
+                  </Text>
+                </View>
+              )}
+
               {/* Descrição & Valor */}
               <Text style={styles.descText} numberOfLines={2}>
                 {tx.description}
@@ -303,6 +313,24 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.info,
     marginLeft: 4,
+  },
+  duplicateTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${colors.warning}25`,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: borderRadius.sm,
+    marginVertical: 4,
+    borderWidth: 1,
+    borderColor: `${colors.warning}60`,
+  },
+  duplicateText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.warning,
+    marginLeft: 4,
+    flex: 1,
   },
   dateText: {
     fontSize: fontSize.xs,

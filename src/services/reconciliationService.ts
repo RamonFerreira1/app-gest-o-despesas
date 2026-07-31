@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { PendingTransaction, ExpenseCategory, ExpenseOrigin } from '../types';
-import { createExpense } from './expenseService';
+import { createExpense, getAllExpenses } from './expenseService';
 import {
   getApiKey,
   fetchPluggyAccounts,
@@ -44,6 +44,8 @@ export async function getPendingTransactions(userId: string): Promise<PendingTra
       suggestedCategory: data.suggestedCategory || 'Outros',
       suggestedOrigin: data.suggestedOrigin || 'pessoal',
       status: data.status,
+      isPossibleDuplicate: data.isPossibleDuplicate || false,
+      matchedExpenseName: data.matchedExpenseName || undefined,
       createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(),
     };
   });
@@ -55,23 +57,43 @@ export async function getPendingTransactions(userId: string): Promise<PendingTra
 /**
  * Sincroniza e busca movimentações recentes dos bancos conectados via Pluggy
  * e as adiciona na fila de conciliação pendente do usuário.
+ * @param daysBack Quantidade de dias retroativos para busca (0 = apenas a partir de hoje / data de conexão).
  */
-export async function syncPluggyTransactions(userId: string, itemId: string): Promise<number> {
+export async function syncPluggyTransactions(
+  userId: string,
+  itemId: string,
+  daysBack: number = 30
+): Promise<number> {
   const apiKey = await getApiKey();
   const accounts = await fetchPluggyAccounts(itemId, apiKey);
   const userAccounts = await getUserPluggyAccounts(userId);
 
+  // Busca todos os gastos existentes para detecção de duplicados
+  let existingExpenses: any[] = [];
+  try {
+    existingExpenses = await getAllExpenses(userId);
+  } catch (e) {
+    console.warn('Não foi possível buscar gastos para verificação de duplicados:', e);
+  }
+
   let totalNew = 0;
+
+  // Define a data limite inicial para a Pluggy
+  let fromStr: string;
+  if (daysBack === 0) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    fromStr = today.toISOString().split('T')[0];
+  } else {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - daysBack);
+    fromStr = startDate.toISOString().split('T')[0];
+  }
 
   for (const account of accounts) {
     const matchingUserAcc = userAccounts.find((a) => a.id === account.id);
     const suggestedOrigin: ExpenseOrigin = matchingUserAcc?.origemDefault || 'pessoal';
     const bankName = matchingUserAcc?.bankName || account.name || 'Banco';
-
-    // Busca transações recentes dos últimos 30 dias
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const fromStr = thirtyDaysAgo.toISOString().split('T')[0];
 
     const pluggyTxs = await fetchPluggyTransactions(account.id, apiKey, fromStr);
 
@@ -87,7 +109,7 @@ export async function syncPluggyTransactions(userId: string, itemId: string): Pr
       const positiveAmount = Math.abs(rawAmount);
       const pluggyTxId = tx.id;
 
-      // Verifica se a transação já foi processada anteriormente
+      // Verifica se a transação já foi processada anteriormente na fila de conciliação
       const existingRef = doc(db, 'users', userId, 'pending_transactions', pluggyTxId);
       const snap = await getDocs(
         query(
@@ -99,6 +121,14 @@ export async function syncPluggyTransactions(userId: string, itemId: string): Pr
       if (snap.empty) {
         const cat = mapPluggyCategoryToExpenseCategory(tx.category);
         const txDate = tx.date ? new Date(tx.date) : new Date();
+
+        // Checa se já existe um gasto manual cadastrado com mesmo valor e data aproximada (±2 dias)
+        const matchingExpense = existingExpenses.find((exp) => {
+          const sameAmount = Math.abs(exp.valor - positiveAmount) < 0.01;
+          const expTime = exp.data instanceof Date ? exp.data.getTime() : new Date(exp.data).getTime();
+          const dayDiff = Math.abs(txDate.getTime() - expTime) / (1000 * 60 * 60 * 24);
+          return sameAmount && dayDiff <= 2;
+        });
 
         await setDoc(existingRef, {
           pluggyTransactionId: pluggyTxId,
@@ -112,6 +142,8 @@ export async function syncPluggyTransactions(userId: string, itemId: string): Pr
           suggestedCategory: cat,
           suggestedOrigin,
           status: 'pending',
+          isPossibleDuplicate: !!matchingExpense,
+          matchedExpenseName: matchingExpense ? matchingExpense.nome : null,
           createdAt: Timestamp.now(),
         });
 

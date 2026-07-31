@@ -119,6 +119,8 @@ export interface PendingTransaction {
   suggestedCategory: ExpenseCategory;
   suggestedOrigin: ExpenseOrigin;
   status: PendingTransactionStatus;
+  isPossibleDuplicate?: boolean;
+  matchedExpenseName?: string;
   createdAt: Date;
 }
 
@@ -135,6 +137,8 @@ export interface PendingTransactionFirestore {
   suggestedCategory: ExpenseCategory;
   suggestedOrigin: ExpenseOrigin;
   status: PendingTransactionStatus;
+  isPossibleDuplicate?: boolean;
+  matchedExpenseName?: string;
   createdAt: Timestamp;
 }
 
