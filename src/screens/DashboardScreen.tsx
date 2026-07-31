@@ -137,7 +137,7 @@ export default function DashboardScreen({ navigation }: any) {
           {/* ── Acesso Rápido ── */}
           <View style={styles.quickAccess}>
             {[
-              { icon: 'sparkles-outline', label: 'Simular', action: () => setShowSimulatorModal(true), color: colors.primary },
+              { icon: 'calculator-outline', label: 'Simular', action: () => setShowSimulatorModal(true), color: '#C77DFF' },
               { icon: 'calendar-outline', label: 'Calendário', action: () => navigation.navigate('Calendar'), color: colors.info },
               { icon: 'trophy-outline', label: 'Metas', action: () => navigation.navigate('Goals'), color: colors.warning },
               { icon: 'settings-outline', label: 'Config', action: () => navigation.navigate('Settings'), color: colors.textSecondary },

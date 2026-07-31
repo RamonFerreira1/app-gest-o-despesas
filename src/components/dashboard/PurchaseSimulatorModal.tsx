@@ -50,8 +50,8 @@ export const PurchaseSimulatorModal: React.FC<PurchaseSimulatorModalProps> = ({
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.titleRow}>
-              <View style={styles.iconBg}>
-                <Ionicons name="sparkles" size={20} color={colors.primary} />
+              <View style={[styles.iconBg, { backgroundColor: '#C77DFF20' }]}>
+                <Ionicons name="calculator-outline" size={20} color="#C77DFF" />
               </View>
               <View>
                 <Text style={styles.title}>Simulador "E se...?" 🔮</Text>
@@ -79,7 +79,7 @@ export const PurchaseSimulatorModal: React.FC<PurchaseSimulatorModalProps> = ({
                 <Text style={styles.label}>Valor Total (R$)</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="2400,00"
+                  placeholder="Digite o valor ex: 2400"
                   placeholderTextColor={colors.textMuted}
                   keyboardType="numeric"
                   value={valorInput}
@@ -121,7 +121,7 @@ export const PurchaseSimulatorModal: React.FC<PurchaseSimulatorModalProps> = ({
             </View>
 
             {/* Resultado da Projeção */}
-            {valorTotal > 0 && (
+            {valorTotal > 0 ? (
               <View style={[styles.resultCard, ultrapassaLimite ? styles.resultCardDanger : styles.resultCardSuccess]}>
                 <View style={styles.resultHeader}>
                   <Ionicons
@@ -157,12 +157,20 @@ export const PurchaseSimulatorModal: React.FC<PurchaseSimulatorModalProps> = ({
                     : `Você ainda ficará com uma folga mensal de ${formatCurrency(limite - novoGastoMensal)} no seu orçamento!`}
                 </Text>
               </View>
+            ) : (
+              <View style={styles.infoHintBox}>
+                <Ionicons name="information-circle-outline" size={20} color={colors.info} />
+                <Text style={styles.infoHintText}>
+                  Digite o valor total da compra e o número de parcelas acima para ver o resultado do cálculo automaticamente em tempo real!
+                </Text>
+              </View>
             )}
           </ScrollView>
 
           <View style={styles.footer}>
             <TouchableOpacity style={styles.closeModalBtn} onPress={onClose}>
-              <Text style={styles.closeModalBtnText}>Fechar Simulador</Text>
+              <Ionicons name="checkmark-circle-outline" size={18} color="#000" style={{ marginRight: 6 }} />
+              <Text style={styles.closeModalBtnText}>Concluir Simulação</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -336,22 +344,39 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 16,
   },
+  infoHintBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: `${colors.info}15`,
+    borderColor: `${colors.info}40`,
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    padding: 12,
+    gap: 8,
+    marginTop: 8,
+  },
+  infoHintText: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    flex: 1,
+    lineHeight: 16,
+  },
   footer: {
     padding: 16,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   closeModalBtn: {
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.primary,
+    flexDirection: 'row',
     paddingVertical: 12,
     borderRadius: borderRadius.md,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: 'center',
   },
   closeModalBtnText: {
-    color: colors.textPrimary,
-    fontWeight: '700',
+    color: '#000',
+    fontWeight: '800',
     fontSize: fontSize.sm,
   },
 });
