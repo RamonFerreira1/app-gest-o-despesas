@@ -104,6 +104,19 @@ export interface PluggyAccount {
   origemDefault: ExpenseOrigin; // 'pessoal' | 'negocio'
 }
 
+export interface MercadoPagoConnection {
+  id: string;
+  mpUserId: number | string;
+  accountName: string;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: Date;
+  balance: number;
+  origemDefault: ExpenseOrigin;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export type PendingTransactionStatus = 'pending' | 'imported' | 'ignored';
 
 export interface PendingTransaction {

@@ -18,6 +18,7 @@ import { setBudget } from '../services/budgetService';
 import { colors, spacing, fontSize, borderRadius, shadows } from '../theme';
 import { formatCurrency } from '../services/insightService';
 import { PluggyConnectModal } from '../components/pluggy/PluggyConnectModal';
+import { BelvoConnectModal } from '../components/belvo/BelvoConnectModal';
 import {
   getUserPluggyItems,
   getUserPluggyAccounts,
@@ -38,8 +39,9 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  // Estados Open Finance / Pluggy
+  // Estados Open Finance / Pluggy / Belvo
   const [showPluggyModal, setShowPluggyModal] = useState(false);
+  const [showBelvoModal, setShowBelvoModal] = useState(false);
   const [pluggyItems, setPluggyItems] = useState<PluggyItem[]>([]);
   const [pluggyAccounts, setPluggyAccounts] = useState<PluggyAccount[]>([]);
   const [loadingPluggy, setLoadingPluggy] = useState(false);
@@ -242,7 +244,16 @@ export default function SettingsScreen() {
             activeOpacity={0.85}
           >
             <Ionicons name="add-circle-outline" size={20} color="#000" />
-            <Text style={styles.connectPluggyText}>Conectar Conta Bancária (Open Finance)</Text>
+            <Text style={styles.connectPluggyText}>Conectar via Pluggy (Open Finance)</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.connectPluggyBtn, { backgroundColor: '#009EE3', marginTop: 8 }]}
+            onPress={() => setShowBelvoModal(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="shield-checkmark-outline" size={20} color="#FFF" />
+            <Text style={[styles.connectPluggyText, { color: '#FFF' }]}>Conectar via Belvo Open Finance</Text>
           </TouchableOpacity>
 
           {loadingPluggy ? (
@@ -500,6 +511,19 @@ export default function SettingsScreen() {
           userId={user.uid}
           onClose={() => setShowPluggyModal(false)}
           onSuccess={handlePluggySuccess}
+        />
+      )}
+
+      {/* Belvo Connect Modal */}
+      {user?.uid && (
+        <BelvoConnectModal
+          visible={showBelvoModal}
+          userId={user.uid}
+          onClose={() => setShowBelvoModal(false)}
+          onSuccess={async () => {
+            await loadPluggyData();
+            Alert.alert('🎉 Conexão Belvo Concluída!', 'Sua conta bancária foi vinculada com sucesso via Belvo!');
+          }}
         />
       )}
 
