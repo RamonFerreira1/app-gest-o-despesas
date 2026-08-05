@@ -302,7 +302,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType={Platform.OS === 'web' ? 'none' : 'slide'} transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.modalContainer}>
           {/* Header */}
