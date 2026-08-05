@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { getConnectToken, getApiKey, fetchPluggyItemDetails, fetchPluggyAccounts, saveUserPluggyItem, saveUserPluggyAccount } from '../../services/pluggyService';
 import { syncPluggyTransactions } from '../../services/reconciliationService';
 import { colors } from '../../theme';
+
+const PLUGGY_API_URL = 'https://api.pluggy.ai';
+
+/** Busca todos os items (conexões) existentes na conta Pluggy */
+async function fetchAllPluggyItems(apiKey: string): Promise<any[]> {
+  const res = await fetch(`${PLUGGY_API_URL}/items`, {
+    headers: { 'X-API-KEY': apiKey },
+  });
+  if (!res.ok) throw new Error('Erro ao listar items da Pluggy');
+  const data = await res.json();
+  return data.results || [];
+}
 
 interface PluggyConnectModalProps {
   visible: boolean;
@@ -32,6 +44,8 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [connectToken, setConnectToken] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // Guarda os item IDs já existentes antes de abrir o browser
+  const previousItemIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (visible) {
@@ -43,6 +57,78 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
     }
   }, [visible]);
 
+  /**
+   * Após o browser fechar no mobile, busca o item recém-criado/atualizado na
+   * Pluggy comparando com o snapshot anterior, salva no Firestore e chama onSuccess.
+   */
+  const handleMobileSuccess = async () => {
+    try {
+      setLoading(true);
+      const apiKey = await getApiKey();
+      const allItems = await fetchAllPluggyItems(apiKey);
+
+      // Descobre qual item é novo (ou atualizado se itemIdToUpdate estava definido)
+      let targetItem: any = null;
+      if (itemIdToUpdate) {
+        targetItem = allItems.find((i: any) => i.id === itemIdToUpdate);
+      } else {
+        // Novo item: pega o que não estava no snapshot anterior
+        targetItem = allItems.find((i: any) => !previousItemIdsRef.current.has(i.id));
+        // Fallback: pega o mais recente
+        if (!targetItem && allItems.length > 0) {
+          targetItem = allItems.sort(
+            (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )[0];
+        }
+      }
+
+      if (!targetItem) {
+        // Nenhum item novo encontrado — apenas fecha sem erro
+        onClose();
+        return;
+      }
+
+      const itemDetails = await fetchPluggyItemDetails(targetItem.id, apiKey);
+      const accounts = await fetchPluggyAccounts(targetItem.id, apiKey);
+
+      // Salva o item no Firestore
+      await saveUserPluggyItem(userId, {
+        id: itemDetails.id,
+        connectorId: itemDetails.connector?.id || 0,
+        connectorName: itemDetails.connector?.name || 'Banco',
+        connectorLogo: itemDetails.connector?.imageUrl,
+        status: itemDetails.status || 'UPDATED',
+        createdAt: new Date(itemDetails.createdAt || Date.now()),
+        updatedAt: new Date(itemDetails.updatedAt || Date.now()),
+      });
+
+      // Salva as contas no Firestore
+      for (const acc of accounts) {
+        await saveUserPluggyAccount(userId, {
+          id: acc.id,
+          itemId: itemDetails.id,
+          name: acc.name || 'Conta Bancária',
+          number: acc.number,
+          balance: acc.balance || 0,
+          type: acc.type || 'BANK',
+          subtype: acc.subtype,
+          bankName: itemDetails.connector?.name || 'Banco',
+          origemDefault: 'pessoal',
+        });
+      }
+
+      // Sincroniza transações
+      const count = await syncPluggyTransactions(userId, itemDetails.id);
+      onSuccess(itemDetails.id, count);
+    } catch (saveErr: any) {
+      console.error('Erro ao salvar item conectado (mobile):', saveErr);
+      setErrorMsg(saveErr.message || 'Erro ao salvar a conexão bancária.');
+    } finally {
+      setLoading(false);
+      onClose();
+    }
+  };
+
   const initConnect = async () => {
     try {
       setLoading(true);
@@ -51,11 +137,23 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
       setConnectToken(token);
 
       if (Platform.OS !== 'web') {
-        // No mobile, abre usando WebBrowser
+        // Snapshot dos items já existentes antes de abrir o browser
+        try {
+          const apiKey = await getApiKey();
+          const existingItems = await fetchAllPluggyItems(apiKey);
+          previousItemIdsRef.current = new Set(existingItems.map((i: any) => i.id));
+        } catch {
+          // Se falhar o snapshot, tudo bem — o fallback por createdAt será usado
+          previousItemIdsRef.current = new Set();
+        }
+
         const connectUrl = `https://connect.pluggy.ai?connect_token=${encodeURIComponent(token)}&with_sandbox=true`;
         const result = await WebBrowser.openAuthSessionAsync(connectUrl, 'nrfinance://pluggy-callback');
+
         if (result.type === 'success' || result.type === 'dismiss') {
-          // Após fechar o browser no mobile, tenta finalizar
+          // Após fechar o browser, processa o item recém-criado
+          await handleMobileSuccess();
+        } else {
           onClose();
         }
       }
