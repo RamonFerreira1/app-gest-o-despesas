@@ -56,7 +56,11 @@ export const BelvoConnectModal: React.FC<BelvoConnectModalProps> = ({
 
       const { access, environment } = await getBelvoWidgetToken();
 
-      const widgetUrl = `https://widget.belvo.com/?access_token=${encodeURIComponent(access)}&locale=pt`;
+      const origin =
+        typeof window !== 'undefined' && window.location?.origin
+          ? window.location.origin
+          : 'https://app-gest-o-despesas.vercel.app';
+      const widgetUrl = `${origin}/belvo-widget.html?access_token=${encodeURIComponent(access)}`;
 
       if (Platform.OS === 'web') {
         const width = 500;

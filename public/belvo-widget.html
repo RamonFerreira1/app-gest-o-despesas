@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Belvo Open Finance Widget</title>
+  <script src="https://cdn.belvo.io/belvo-widget-1-stable.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #121214;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow: hidden;
+    }
+    #belvo {
+      width: 100%;
+      height: 100%;
+    }
+    .loading-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #ffffff;
+    }
+    .spinner {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border-left-color: #009EE3;
+      animation: spin 1s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="belvo">
+    <div class="loading-box">
+      <div class="spinner"></div>
+      <div>Carregando Belvo Open Finance...</div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const accessToken = urlParams.get('access_token');
+
+      function successCallback(link, institution) {
+        const payload = {
+          event: 'BELVO_LINK_CREATED',
+          link: link,
+          institution: institution
+        };
+        if (window.opener) {
+          window.opener.postMessage(payload, '*');
+          setTimeout(function() { window.close(); }, 1500);
+        } else if (window.parent) {
+          window.parent.postMessage(payload, '*');
+        }
+      }
+
+      function exitCallback(data) {
+        const payload = { event: 'BELVO_WIDGET_CLOSED' };
+        if (window.opener) {
+          window.opener.postMessage(payload, '*');
+          setTimeout(function() { window.close(); }, 500);
+        } else if (window.parent) {
+          window.parent.postMessage(payload, '*');
+        }
+      }
+
+      function eventCallback(data) {
+        console.log('Belvo Event:', data);
+      }
+
+      function initWidget() {
+        if (!accessToken) {
+          document.getElementById('belvo').innerHTML = '<div class="loading-box" style="color: #ff4d4d;">Token de acesso ausente.</div>';
+          return;
+        }
+
+        if (window.belvoSDK) {
+          try {
+            belvoSDK.createWidget(accessToken, {
+              callback: successCallback,
+              onExit: exitCallback,
+              onEvent: eventCallback,
+              locale: 'pt'
+            }).build();
+          } catch (err) {
+            console.error('Erro ao construir widget Belvo:', err);
+          }
+        } else {
+          setTimeout(initWidget, 300);
+        }
+      }
+
+      window.addEventListener('load', initWidget);
+    })();
+  </script>
+</body>
+</html>
