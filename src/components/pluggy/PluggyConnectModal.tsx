@@ -56,8 +56,12 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
   const [connectToken, setConnectToken] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [adBlockerDetected, setAdBlockerDetected] = useState(false);
+  const [webPopupOpen, setWebPopupOpen] = useState(false);
   // Guarda os item IDs já existentes antes de abrir o browser
   const previousItemIdsRef = useRef<Set<string>>(new Set());
+  // Referência ao popup aberto no web
+  const popupRef = useRef<Window | null>(null);
+  const popupPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -170,17 +174,54 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
     try {
       setLoading(true);
       setErrorMsg(null);
+      setWebPopupOpen(false);
       const token = await getConnectToken(itemIdToUpdate);
       setConnectToken(token);
 
-      if (Platform.OS !== 'web') {
-        // Snapshot dos items já existentes antes de abrir o browser
+      if (Platform.OS === 'web') {
+        // Web: abre popup em vez de iframe para permitir OAuth sem restrições
+        const connectUrl = `https://connect.pluggy.ai?connect_token=${encodeURIComponent(token)}`;
+        const width = 480;
+        const height = 700;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+        const popup = window.open(
+          connectUrl,
+          'PluggyConnect',
+          `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+        );
+
+        if (!popup || popup.closed) {
+          // Popup bloqueado pelo navegador
+          setErrorMsg(
+            'O navegador bloqueou o pop-up.\n\n' +
+            'Permita pop-ups para este site nas configurações do navegador e tente novamente.'
+          );
+          setLoading(false);
+          return;
+        }
+
+        popupRef.current = popup;
+        setLoading(false);
+        setWebPopupOpen(true);
+
+        // Detecta se o usuário fechou o popup manualmente
+        if (popupPollRef.current) clearInterval(popupPollRef.current);
+        popupPollRef.current = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(popupPollRef.current!);
+            popupPollRef.current = null;
+            popupRef.current = null;
+            setWebPopupOpen(false);
+          }
+        }, 800);
+      } else {
+        // Mobile: snapshot dos items já existentes antes de abrir o browser
         try {
           const apiKey = await getApiKey();
           const existingItems = await fetchAllPluggyItems(apiKey);
           previousItemIdsRef.current = new Set(existingItems.map((i: any) => i.id));
         } catch {
-          // Se falhar o snapshot, tudo bem — o fallback por createdAt será usado
           previousItemIdsRef.current = new Set();
         }
 
@@ -188,7 +229,6 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
         const result = await WebBrowser.openAuthSessionAsync(connectUrl, 'nrfinance://pluggy-callback');
 
         if (result.type === 'success' || result.type === 'dismiss') {
-          // Após fechar o browser, processa o item recém-criado
           await handleMobileSuccess();
         } else {
           onClose();
@@ -198,12 +238,20 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
       console.error('Erro ao obter token do Pluggy Connect:', err);
       setErrorMsg(err.message || 'Não foi possível conectar com a Pluggy.');
     } finally {
-      setLoading(false);
+      if (Platform.OS !== 'web') setLoading(false);
     }
   };
 
+  // Limpa o popup e o intervalo ao desmontar ou fechar
+  useEffect(() => {
+    return () => {
+      if (popupPollRef.current) clearInterval(popupPollRef.current);
+      if (popupRef.current && !popupRef.current.closed) popupRef.current.close();
+    };
+  }, []);
 
-  // Listener para postMessage no Web (quando o iframe do Pluggy envia eventos)
+
+  // Listener para postMessage no Web (quando o popup do Pluggy envia eventos)
   useEffect(() => {
     if (Platform.OS !== 'web' || !visible) return;
 
@@ -224,7 +272,14 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
         if (eventData.event === 'item/created' || eventData.event === 'item/updated') {
           const itemId = eventData.item?.id || eventData.itemId;
           if (itemId) {
+            // Fecha o popup ao receber sucesso
+            if (popupRef.current && !popupRef.current.closed) popupRef.current.close();
+            if (popupPollRef.current) { clearInterval(popupPollRef.current); popupPollRef.current = null; }
+            popupRef.current = null;
+            setWebPopupOpen(false);
+
             setLoading(true);
+            setLoadingMsg('Salvando conexão bancária...');
             setAdBlockerDetected(false);
             try {
               // Busca detalhes do item e contas com timeout de 15s
@@ -232,6 +287,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
               const itemDetails = await withTimeout(fetchPluggyItemDetails(itemId, apiKey), 15000, 'fetchItem');
               const accounts = await withTimeout(fetchPluggyAccounts(itemId, apiKey), 15000, 'fetchAccounts');
 
+              setLoadingMsg('Salvando conta no app...');
               // Salva o item no Firestore (timeout de 12s — operações de rede)
               await withTimeout(
                 saveUserPluggyItem(userId, {
@@ -266,6 +322,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
                 );
               }
 
+              setLoadingMsg('Sincronizando movimentações...');
               // Sincroniza transações
               const count = await withTimeout(
                 syncPluggyTransactions(userId, itemDetails.id),
@@ -288,6 +345,9 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
             }
           }
         } else if (eventData.event === 'close') {
+          if (popupRef.current && !popupRef.current.closed) popupRef.current.close();
+          popupRef.current = null;
+          setWebPopupOpen(false);
           onClose();
         }
       } catch (err) {
@@ -350,13 +410,28 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
                 <Text style={styles.retryText}>Tentar Novamente</Text>
               </TouchableOpacity>
             </View>
-          ) : Platform.OS === 'web' && connectToken ? (
-            <View style={styles.iframeContainer}>
-              <iframe
-                src={`https://connect.pluggy.ai?connect_token=${encodeURIComponent(connectToken)}&with_sandbox=true&includeSandbox=true`}
-                style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }}
-                title="Pluggy Connect"
-              />
+          ) : Platform.OS === 'web' && webPopupOpen ? (
+            <View style={styles.mobileHintContainer}>
+              <Ionicons name="open-outline" size={52} color={colors.primary} />
+              <Text style={styles.mobileHintTitle}>Janela de Conexão Aberta</Text>
+              <Text style={styles.mobileHintDesc}>
+                Complete a autorização na janela pop-up que abriu.{'
+'}{'
+'}
+                Após concluir no site do banco, esta tela será atualizada automaticamente.
+              </Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => {
+                  if (popupRef.current && !popupRef.current.closed) {
+                    popupRef.current.focus();
+                  } else {
+                    initConnect();
+                  }
+                }}
+              >
+                <Text style={styles.retryText}>Reabrir Janela</Text>
+              </TouchableOpacity>
             </View>
           ) : (
 
