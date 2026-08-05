@@ -415,10 +415,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
               <Ionicons name="open-outline" size={52} color={colors.primary} />
               <Text style={styles.mobileHintTitle}>Janela de Conexão Aberta</Text>
               <Text style={styles.mobileHintDesc}>
-                Complete a autorização na janela pop-up que abriu.{'
-'}{'
-'}
-                Após concluir no site do banco, esta tela será atualizada automaticamente.
+                {'Complete a autorização na janela pop-up que abriu.\n\nApós concluir no site do banco, esta tela será atualizada automaticamente.'}
               </Text>
               <TouchableOpacity
                 style={styles.retryButton}
