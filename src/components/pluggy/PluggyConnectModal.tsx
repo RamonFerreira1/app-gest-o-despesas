@@ -180,7 +180,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
 
       if (Platform.OS === 'web') {
         // Web: abre popup em vez de iframe para permitir OAuth sem restrições
-        const connectUrl = `https://connect.pluggy.ai?connect_token=${encodeURIComponent(token)}`;
+        const connectUrl = `https://connect.pluggy.ai?connect_token=${encodeURIComponent(token)}&with_sandbox=true`;
         const width = 480;
         const height = 700;
         const left = window.screenX + (window.outerWidth - width) / 2;
