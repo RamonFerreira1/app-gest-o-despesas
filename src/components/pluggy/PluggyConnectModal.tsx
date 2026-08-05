@@ -26,6 +26,16 @@ async function fetchAllPluggyItems(apiKey: string): Promise<any[]> {
   return data.results || [];
 }
 
+/** Garante que uma Promise resolva em no máximo `ms` milissegundos */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`TIMEOUT:${label}`)), ms)
+    ),
+  ]);
+}
+
 interface PluggyConnectModalProps {
   visible: boolean;
   userId: string;
@@ -44,6 +54,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [connectToken, setConnectToken] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [adBlockerDetected, setAdBlockerDetected] = useState(false);
   // Guarda os item IDs já existentes antes de abrir o browser
   const previousItemIdsRef = useRef<Set<string>>(new Set());
 
@@ -188,46 +199,66 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
           const itemId = eventData.item?.id || eventData.itemId;
           if (itemId) {
             setLoading(true);
+            setAdBlockerDetected(false);
             try {
-              const apiKey = await getApiKey();
-              const itemDetails = await fetchPluggyItemDetails(itemId, apiKey);
-              const accounts = await fetchPluggyAccounts(itemId, apiKey);
+              // Busca detalhes do item e contas com timeout de 15s
+              const apiKey = await withTimeout(getApiKey(), 15000, 'getApiKey');
+              const itemDetails = await withTimeout(fetchPluggyItemDetails(itemId, apiKey), 15000, 'fetchItem');
+              const accounts = await withTimeout(fetchPluggyAccounts(itemId, apiKey), 15000, 'fetchAccounts');
 
-              // Salva o item
-              await saveUserPluggyItem(userId, {
-                id: itemDetails.id,
-                connectorId: itemDetails.connector?.id || 0,
-                connectorName: itemDetails.connector?.name || 'Banco',
-                connectorLogo: itemDetails.connector?.imageUrl,
-                status: itemDetails.status || 'UPDATED',
-                createdAt: new Date(itemDetails.createdAt || Date.now()),
-                updatedAt: new Date(itemDetails.updatedAt || Date.now()),
-              });
+              // Salva o item no Firestore (timeout de 12s — operações de rede)
+              await withTimeout(
+                saveUserPluggyItem(userId, {
+                  id: itemDetails.id,
+                  connectorId: itemDetails.connector?.id || 0,
+                  connectorName: itemDetails.connector?.name || 'Banco',
+                  connectorLogo: itemDetails.connector?.imageUrl,
+                  status: itemDetails.status || 'UPDATED',
+                  createdAt: new Date(itemDetails.createdAt || Date.now()),
+                  updatedAt: new Date(itemDetails.updatedAt || Date.now()),
+                }),
+                12000,
+                'saveItem'
+              );
 
-              // Salva as contas
+              // Salva as contas no Firestore
               for (const acc of accounts) {
-                await saveUserPluggyAccount(userId, {
-                  id: acc.id,
-                  itemId: itemDetails.id,
-                  name: acc.name || 'Conta Bancária',
-                  number: acc.number,
-                  balance: acc.balance || 0,
-                  type: acc.type || 'BANK',
-                  subtype: acc.subtype,
-                  bankName: itemDetails.connector?.name || 'Banco',
-                  origemDefault: 'pessoal', // Padrão Inicial
-                });
+                await withTimeout(
+                  saveUserPluggyAccount(userId, {
+                    id: acc.id,
+                    itemId: itemDetails.id,
+                    name: acc.name || 'Conta Bancária',
+                    number: acc.number,
+                    balance: acc.balance || 0,
+                    type: acc.type || 'BANK',
+                    subtype: acc.subtype,
+                    bankName: itemDetails.connector?.name || 'Banco',
+                    origemDefault: 'pessoal',
+                  }),
+                  12000,
+                  'saveAccount'
+                );
               }
 
-              // Sincroniza primeiras movimentações para conciliação
-              const count = await syncPluggyTransactions(userId, itemDetails.id);
+              // Sincroniza transações
+              const count = await withTimeout(
+                syncPluggyTransactions(userId, itemDetails.id),
+                20000,
+                'syncTransactions'
+              );
 
               onSuccess(itemDetails.id, count);
-            } catch (saveErr) {
+            } catch (saveErr: any) {
               console.error('Erro ao salvar item conectado:', saveErr);
+              // Detecta timeout (causado geralmente por ad blocker bloqueando Firestore)
+              if (saveErr?.message?.startsWith('TIMEOUT:')) {
+                setAdBlockerDetected(true);
+                setLoading(false);
+                return; // Não fecha o modal — mostra tela de erro
+              }
             } finally {
               setLoading(false);
-              onClose();
+              if (!adBlockerDetected) onClose();
             }
           }
         } else if (eventData.event === 'close') {
@@ -240,7 +271,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [visible, userId]);
+  }, [visible, userId, adBlockerDetected]);
 
   if (!visible) return null;
 
@@ -260,10 +291,30 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
           </View>
 
           {/* Body */}
-          {loading ? (
+          {adBlockerDetected ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="shield-outline" size={52} color="#FF9500" />
+              <Text style={[styles.errorText, { color: '#FF9500', fontWeight: '700', fontSize: 16, marginBottom: 8 }]}>
+                Ad Blocker Detectado
+              </Text>
+              <Text style={[styles.errorText, { color: colors.textSecondary, fontSize: 13, lineHeight: 20 }]}>
+                Seu bloqueador de anúncios está impedindo a conexão com o banco de dados do app (Firestore).{'\n\n'}
+                Para continuar, <Text style={{ fontWeight: '700', color: colors.textPrimary }}>desative o ad blocker para este site</Text> e tente novamente.
+              </Text>
+              <TouchableOpacity
+                style={[styles.retryButton, { backgroundColor: '#FF9500', marginTop: 8 }]}
+                onPress={() => { setAdBlockerDetected(false); initConnect(); }}
+              >
+                <Text style={styles.retryText}>Já desativei — Tentar Novamente</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.retryButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, marginTop: 8 }]} onPress={onClose}>
+                <Text style={[styles.retryText, { color: colors.textSecondary }]}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Iniciando conexão segura com a Pluggy...</Text>
+              <Text style={styles.loadingText}>Salvando conexão bancária...</Text>
             </View>
           ) : errorMsg ? (
             <View style={styles.errorContainer}>
