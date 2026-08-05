@@ -52,6 +52,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
   onSuccess,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState('Iniciando...');
   const [connectToken, setConnectToken] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [adBlockerDetected, setAdBlockerDetected] = useState(false);
@@ -69,40 +70,66 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
   }, [visible]);
 
   /**
-   * Após o browser fechar no mobile, busca o item recém-criado/atualizado na
-   * Pluggy comparando com o snapshot anterior, salva no Firestore e chama onSuccess.
+   * Após o browser fechar no mobile, tenta encontrar o item recém-criado na
+   * Pluggy com retries (a Pluggy pode demorar alguns segundos para processar).
    */
   const handleMobileSuccess = async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY_MS = 3000;
+
     try {
       setLoading(true);
-      const apiKey = await getApiKey();
-      const allItems = await fetchAllPluggyItems(apiKey);
+      setErrorMsg(null);
 
-      // Descobre qual item é novo (ou atualizado se itemIdToUpdate estava definido)
+      const apiKey = await getApiKey();
       let targetItem: any = null;
-      if (itemIdToUpdate) {
-        targetItem = allItems.find((i: any) => i.id === itemIdToUpdate);
-      } else {
-        // Novo item: pega o que não estava no snapshot anterior
-        targetItem = allItems.find((i: any) => !previousItemIdsRef.current.has(i.id));
-        // Fallback: pega o mais recente
-        if (!targetItem && allItems.length > 0) {
-          targetItem = allItems.sort(
-            (a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          )[0];
+
+      // Aguarda 2s antes da 1ª tentativa (Pluggy precisa de tempo para processar)
+      setLoadingMsg('Aguardando a Pluggy processar a conexão...');
+      await sleep(2000);
+
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        setLoadingMsg(`Verificando conexão bancária... (${attempt}/${MAX_RETRIES})`);
+        const allItems = await fetchAllPluggyItems(apiKey);
+
+        if (itemIdToUpdate) {
+          targetItem = allItems.find((i: any) => i.id === itemIdToUpdate);
+        } else {
+          // Novo item: qualquer item que não estava no snapshot anterior
+          targetItem = allItems.find((i: any) => !previousItemIdsRef.current.has(i.id));
+
+          // Fallback: o mais recente criado nos últimos 5 minutos
+          if (!targetItem && allItems.length > 0) {
+            const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+            const recentItem = allItems
+              .filter((i: any) => new Date(i.createdAt).getTime() > fiveMinutesAgo)
+              .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+            targetItem = recentItem || null;
+          }
+        }
+
+        if (targetItem) break; // Encontrou! Para de tentar.
+
+        if (attempt < MAX_RETRIES) {
+          setLoadingMsg(`Ainda processando... aguardando ${RETRY_DELAY_MS / 1000}s`);
+          await sleep(RETRY_DELAY_MS);
         }
       }
 
       if (!targetItem) {
-        // Nenhum item novo encontrado — apenas fecha sem erro
-        onClose();
+        setErrorMsg(
+          'A conexão foi concluída no banco, mas não encontramos o item na Pluggy.\n\n' +
+          'Feche este modal e toque em “Conectar Conta Bancária” novamente para tentar sincronizar.'
+        );
         return;
       }
 
+      setLoadingMsg('Carregando dados da conta...');
       const itemDetails = await fetchPluggyItemDetails(targetItem.id, apiKey);
       const accounts = await fetchPluggyAccounts(targetItem.id, apiKey);
 
-      // Salva o item no Firestore
+      setLoadingMsg('Salvando conexão...');
       await saveUserPluggyItem(userId, {
         id: itemDetails.id,
         connectorId: itemDetails.connector?.id || 0,
@@ -113,7 +140,6 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
         updatedAt: new Date(itemDetails.updatedAt || Date.now()),
       });
 
-      // Salva as contas no Firestore
       for (const acc of accounts) {
         await saveUserPluggyAccount(userId, {
           id: acc.id,
@@ -128,15 +154,15 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
         });
       }
 
-      // Sincroniza transações
+      setLoadingMsg('Sincronizando movimentações...');
       const count = await syncPluggyTransactions(userId, itemDetails.id);
       onSuccess(itemDetails.id, count);
+      onClose();
     } catch (saveErr: any) {
       console.error('Erro ao salvar item conectado (mobile):', saveErr);
       setErrorMsg(saveErr.message || 'Erro ao salvar a conexão bancária.');
     } finally {
       setLoading(false);
-      onClose();
     }
   };
 
@@ -314,7 +340,7 @@ export const PluggyConnectModal: React.FC<PluggyConnectModalProps> = ({
           ) : loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Salvando conexão bancária...</Text>
+              <Text style={styles.loadingText}>{loadingMsg}</Text>
             </View>
           ) : errorMsg ? (
             <View style={styles.errorContainer}>
