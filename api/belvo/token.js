@@ -17,9 +17,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const secretId = process.env.BELVO_SECRET_ID || process.env.EXPO_PUBLIC_BELVO_SECRET_ID;
-    const secretPassword = process.env.BELVO_SECRET_PASSWORD;
-    const environment = process.env.BELVO_ENV || 'sandbox'; // 'sandbox' ou 'development' ou 'production'
+    const secretId = process.env.BELVO_SECRET_ID || process.env.EXPO_PUBLIC_BELVO_SECRET_ID || '7164bf57-4e00-4bfc-a176-e7477f650eb6';
+    const secretPassword = process.env.BELVO_SECRET_PASSWORD || '7jyZcw_mkp9mIskN1J@ndP0Vlffa3_rTfPZkD*gX7Z2XZS6G*9Fa#E#1W7znfh0r';
+    const environment = process.env.BELVO_ENV || 'sandbox';
 
     if (!secretId || !secretPassword) {
       return res.status(500).json({
